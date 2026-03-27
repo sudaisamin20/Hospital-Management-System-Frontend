@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { type User, type AuthState, type Role } from "./authTypes";
+import type { RootState } from "../../app/store";
 
 const initialState: AuthState = {
   user: null,
@@ -73,5 +74,10 @@ export const {
   createUser,
   updateUserProfile,
 } = authSlice.actions;
+
+// ─── Selectors ────────────────────────────────────────────────────────────────
+export const selectCurrentUser = (state: RootState) => state.auth.user;
+export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated;
+export const selectRole = (state: RootState) => state.auth.role;
 
 export default authSlice.reducer;

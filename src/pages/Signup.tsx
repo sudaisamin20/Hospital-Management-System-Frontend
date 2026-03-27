@@ -1,104 +1,11 @@
-import React, { useState } from "react";
 import signupBg from "../assets/signup-page-bg.jpg";
 import { FaLock } from "react-icons/fa";
 import { Calendar, CheckCircle, Clock, FileText } from "lucide-react";
 import Navbar from "../components/Navbar";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import type { PatientUser } from "../features/auth/authTypes";
-import { login } from "../features/auth/authSlice";
+import { useSignup } from "../features/auth/auth.hooks";
 
 const Signup = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    fullName: "",
-    dob: "",
-    gender: "",
-    phoneNo: "",
-    email: "",
-    address: "",
-    emergencyNo: "",
-    password: "",
-    agreeTerms: false,
-  });
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value, type } = e.target;
-
-    if (type === "checkbox") {
-      const checked = (e.target as HTMLInputElement).checked;
-
-      setFormData((prev) => ({
-        ...prev,
-        [name]: checked,
-      }));
-      return;
-    }
-
-    if (name === "phoneNo" || name === "emergencyNo") {
-      const numericValue = value.replace(/\D/g, "");
-
-      if (numericValue.length > 11) return;
-
-      setFormData((prev) => ({
-        ...prev,
-        [name]: numericValue,
-      }));
-      return;
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-  interface ApiResponse {
-    success: boolean;
-    message: string;
-    patient?: {
-      id: string;
-      fullName: string;
-      email: string;
-      role: string;
-      dob: string;
-      gender: string;
-      phoneNo: string;
-      address: string;
-      emergencyNo: string;
-      agreeTerms: boolean;
-    };
-    token?: string;
-  }
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await axios.post<ApiResponse>(
-        `${import.meta.env.VITE_BASE_URL}/api/patient/auth/register`,
-        formData,
-      );
-      if (response.data.success) {
-        const userData: PatientUser = {
-          ...response.data.patient!,
-          role: "patient",
-          token: response.data.token || null,
-        };
-        dispatch(login(userData));
-        navigate("/patient/dashboard");
-      } else {
-        throw new Error(`Failed to register patient: ${response.data.message}`);
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error during patient registration:", error.message);
-      } else {
-        console.error("Unexpected error during patient registration:", error);
-      }
-    }
-  };
+  const { formData, handleChange, handleSubmit, isLoading } = useSignup();
 
   return (
     <>
@@ -374,10 +281,11 @@ const Signup = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  className="btn-primary w-full group cursor-pointer"
+                  disabled={isLoading}
+                  className="btn-primary w-full group cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <span className="flex items-center justify-center gap-2">
-                    Create Account
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
                     <svg
                       className="w-5 h-5 group-hover:translate-x-1 transition-transform"
                       fill="none"

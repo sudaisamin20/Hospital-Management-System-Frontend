@@ -1,21 +1,8 @@
-import React, { useState } from "react";
-import RoleSelector from "../components/auth/RoleSelector";
-import PatientForm from "../components/auth/PatientForm";
-import DoctorForm from "../components/auth/DoctorForm";
-import ReceptionistForm from "../components/auth/ReceptionistForm";
+import { useState } from "react";
 import backgroundImage from "../assets/login-page-bg.jpg";
 import Navbar from "../components/Navbar";
-import PharmacistForm from "../components/auth/PharmacistForm";
-import LabAssistantForm from "../components/auth/LabAssistantForm";
-import SuperAdminForm from "../components/auth/SuperAdminForm";
-
-type Role =
-  | "superadmin"
-  | "patient"
-  | "doctor"
-  | "receptionist"
-  | "labAssistant"
-  | "pharmacist";
+import { LoginForm, RoleSelector } from "../components/auth";
+import type { Role } from "../features/auth/authTypes";
 
 const Login = () => {
   const [role, setRole] = useState<Role>("patient");
@@ -59,15 +46,9 @@ const Login = () => {
                 <ul className="space-y-2 text-blue-50">
                   {[
                     { icon: "🔒", text: "Secure Role-Based Access Control" },
-                    {
-                      icon: "⚡",
-                      text: "Faster Patient Handling & Processing",
-                    },
+                    { icon: "⚡", text: "Faster Patient Handling & Processing" },
                     { icon: "👨‍💼", text: "Centralized Admin Control System" },
-                    {
-                      icon: "📊",
-                      text: "Real-Time Medical Records & Analytics",
-                    },
+                    { icon: "📊", text: "Real-Time Medical Records & Analytics" },
                   ].map((item, idx) => (
                     <li key={idx} className="flex items-center gap-3 group">
                       <span className="text-lg group-hover:scale-110 transition-transform">
@@ -108,15 +89,7 @@ const Login = () => {
               </div>
 
               <RoleSelector role={role} setRole={setRole} />
-
-              <div className="">
-                {role === "superadmin" && <SuperAdminForm role={role} />}
-                {role === "patient" && <PatientForm role={role} />}
-                {role === "doctor" && <DoctorForm role={role} />}
-                {role === "receptionist" && <ReceptionistForm role={role} />}
-                {role === "pharmacist" && <PharmacistForm role={role} />}
-                {role === "labAssistant" && <LabAssistantForm role={role} />}
-              </div>
+              <LoginForm role={role} />
             </div>
 
             <p className="text-center text-white/90 text-sm mt-3 drop-shadow-lg">

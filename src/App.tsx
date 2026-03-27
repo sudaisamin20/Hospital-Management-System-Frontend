@@ -6,7 +6,7 @@ import Signup from "./pages/Signup";
 import SidebarContentPage from "./components/sidebar/SidebarContentPage";
 import PatientDashboard from "./pages/patient/PatientDashboard";
 import LearnMore from "./pages/LearnMore";
-import { useLoadUser } from "./hooks/FetchDataFromLS";
+import { useLoadUser } from "./hooks/useLoadUser";
 import SuperAdminDashboard from "./pages/super admin/SuperAdminDashboard";
 import Patients from "./pages/super admin/Patients";
 import StaffManagement from "./pages/super admin/StaffManagement";
