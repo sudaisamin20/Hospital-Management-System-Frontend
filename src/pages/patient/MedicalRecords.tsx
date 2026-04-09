@@ -88,6 +88,8 @@ const MedicalRecords = () => {
     }
   };
 
+  console.log(medicalRecords);
+
   useEffect(() => {
     if (patient?.id) {
       fetchMedicalRecords();
@@ -155,30 +157,52 @@ const MedicalRecords = () => {
     },
   ];
 
-  // Timeline data - combining all records
-  const timelineData = [
+  // Timeline data - combining all records with improved deduplication
+  const timelineDataRaw = [
     ...medicalRecords.appointments.map((apt) => ({
       date: apt.date,
       type: "appointment",
       data: apt,
+      id: apt._id || apt.id_no,
+      uniqueKey: `appointment-${apt._id || apt.id_no || apt.date}`,
     })),
     ...medicalRecords.consultations.map((cons) => ({
       date: cons.date,
       type: "consultation",
       data: cons,
+      id: cons._id,
+      uniqueKey: `consultation-${cons._id || cons.date}`,
     })),
     ...medicalRecords.prescriptions.map((pres) => ({
       date: pres.date,
       type: "prescription",
       data: pres,
+      id: pres._id || pres.id_no,
+      uniqueKey: `prescription-${pres._id || pres.id_no || pres.date}`,
     })),
     ...medicalRecords.labTests.map((lab) => ({
       date: lab.date,
       type: "labTest",
       data: lab,
+      id: lab._id || lab.id_no,
+      uniqueKey: `labTest-${lab._id || lab.id_no || lab.date}`,
     })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  console.log(selectedRecord);
+  ];
+
+  // Deduplicate by uniqueKey with strict checking
+  const seenKeys = new Map();
+  const timelineData = timelineDataRaw
+    .filter((item) => {
+      if (!item.uniqueKey) return true;
+
+      if (seenKeys.has(item.uniqueKey)) {
+        return false;
+      }
+      seenKeys.set(item.uniqueKey, true);
+      return true;
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   // Group timeline by date
   const groupedTimeline = timelineData.reduce((acc: any, item) => {
     const date = new Date(item.date).toLocaleDateString("en-US", {
@@ -210,7 +234,7 @@ const MedicalRecords = () => {
     <div className="min-h-screen w-full bg-gray-50 p-3">
       <div className="max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="mb-3">
           <div className="flex items-center gap-3 mb-3">
             <div className="bg-blue-100 p-3 rounded-full">
               <FileText className="h-6 w-6 text-blue-600" />
@@ -589,46 +613,102 @@ const MedicalRecords = () => {
                 {/* Prescriptions Tab */}
                 {activeTab === "prescriptions" && (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                      Prescription History
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      Prescription history
                     </h3>
 
                     {medicalRecords.prescriptions.length === 0 ? (
                       <div className="text-center py-12">
-                        <Pill className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 text-lg">
+                        <Pill className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-400 text-base">
                           No prescriptions found
                         </p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-4">
+                      <div className="flex flex-col gap-4">
                         {medicalRecords.prescriptions.map((pres) => (
                           <div
                             key={pres._id}
-                            className="bg-white border border-gray-200 rounded-lg p-4"
+                            className="bg-white border border-gray-100 rounded-xl p-5"
                           >
-                            <div className="flex items-start justify-between mb-4">
-                              <div>
-                                <p className="text-sm text-gray-600 mb-1">
-                                  {pres.id_no}
-                                </p>
-                                <p className="text-lg font-bold text-gray-900">
-                                  {pres.doctor}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  {new Date(pres.date).toLocaleDateString(
-                                    "en-US",
-                                    {
-                                      year: "numeric",
-                                      month: "long",
-                                      day: "numeric",
-                                    },
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3">
+                                {pres.doctor ? (
+                                  <img
+                                    src={`${baseurl}/images/uploads/${pres.doctor.photo}`}
+                                    alt={pres.doctor.fullName}
+                                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-sm font-medium flex-shrink-0">
+                                    {pres.doctor.fullName
+                                      .split(" ")
+                                      .map((w: string) => w[0])
+                                      .join("")
+                                      .toUpperCase()
+                                      .slice(0, 2)}
+                                  </div>
+                                )}
+
+                                {/* Meta info */}
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-xs text-gray-400 tracking-wide">
+                                    {pres.id_no}
+                                  </span>
+                                  <span className="text-sm font-medium text-gray-900">
+                                    Dr. {pres.doctor.fullName}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    Issued{" "}
+                                    {`${new Date(pres.date).toLocaleDateString(
+                                      "en-US",
+                                      {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                      },
+                                    )} at ${new Date(
+                                      pres.date,
+                                    ).toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}`}
+                                  </span>
+                                  {pres.dispensedBy ? (
+                                    <span className="text-xs text-gray-500">
+                                      Dispensed by{" "}
+                                      <span className="text-green-600 font-medium">
+                                        {pres.dispensedBy.fullName}
+                                      </span>{" "}
+                                      ·{" "}
+                                      {new Date(
+                                        pres.dispensedAt,
+                                      ).toLocaleDateString("en-US", {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                      })}{" "}
+                                      at{" "}
+                                      {new Date(
+                                        pres.dispensedAt,
+                                      ).toLocaleTimeString("en-US", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-yellow-600 font-medium">
+                                      Awaiting dispensation
+                                    </span>
                                   )}
-                                </p>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
+
+                              {/* Right: badge + button */}
+                              <div className="flex flex-col items-end gap-2">
                                 <span
-                                  className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(pres.status)}`}
+                                  className={`text-xs font-medium px-3 py-1 rounded-full border ${getStatusColor(pres.status)}`}
                                 >
                                   {pres.status}
                                 </span>
@@ -638,30 +718,47 @@ const MedicalRecords = () => {
                                     setModalType("prescriptionDetails");
                                     openModal();
                                   }}
-                                  className="px-4 cursor-pointer transition-colors ease-in-out duration-300 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                                  className="text-xs font-medium text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5 hover:bg-blue-100 transition-colors cursor-pointer"
                                 >
-                                  View Details
+                                  View details
                                 </button>
                               </div>
                             </div>
 
-                            <div className="space-y-2">
+                            {/* Divider */}
+                            <hr className="my-4 border-gray-100" />
+
+                            {/* Medicines */}
+                            <div className="flex flex-col gap-2">
                               {pres.medicines.map((med: any, idx: number) => (
                                 <div
                                   key={idx}
-                                  className="bg-green-50 border border-green-200 rounded-lg p-3"
+                                  className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5"
                                 >
-                                  <div className="flex items-start justify-between">
-                                    <div>
-                                      <p className="text-sm font-bold text-green-900">
-                                        {idx + 1}. {med.name}
-                                      </p>
-                                      <p className="text-xs text-green-700 mt-1">
-                                        {med.dosage}mg • {med.frequency}x/day •{" "}
-                                        {med.duration} days
-                                      </p>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-gray-400 w-4">
+                                      {idx + 1}
+                                    </span>
+                                    <div className="w-7 h-7 rounded-full bg-green-50 flex items-center justify-center">
+                                      <Pill className="h-3.5 w-3.5 text-green-500" />
                                     </div>
-                                    <Pill className="h-5 w-5 text-green-600" />
+                                    <span className="text-sm font-medium text-gray-800">
+                                      {med.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-1.5 flex-wrap justify-end">
+                                    {[
+                                      `${med.dosage} mg`,
+                                      `${med.frequency}× daily`,
+                                      `${med.duration} days`,
+                                    ].map((tag) => (
+                                      <span
+                                        key={tag}
+                                        className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
                                   </div>
                                 </div>
                               ))}
@@ -699,10 +796,10 @@ const MedicalRecords = () => {
                                 Test Name
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                                Ordered By
+                                Issued By
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                                Date
+                                Date & Time
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
                                 Status
@@ -722,17 +819,32 @@ const MedicalRecords = () => {
                                   {lab.testName}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-900">
-                                  {lab.orderedBy}
+                                  Dr. {lab.orderedBy}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                  {new Date(lab.date).toLocaleDateString(
-                                    "en-US",
-                                    {
-                                      year: "numeric",
-                                      month: "short",
-                                      day: "numeric",
-                                    },
-                                  )}
+                                <td className="px-4 py-3 text-sm text-gray-600">
+                                  <div className="flex flex-col gap-1">
+                                    <p className="flex items-center gap-1">
+                                      <Calendar className="h-4 w-4" />
+                                      {new Date(lab.date).toLocaleDateString(
+                                        "en-US",
+                                        {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric",
+                                        },
+                                      )}
+                                    </p>
+                                    <p className="flex items-center gap-1">
+                                      <Clock className="h-4 w-4" />
+                                      {new Date(lab.date).toLocaleTimeString(
+                                        "en-US",
+                                        {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        },
+                                      )}
+                                    </p>
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3">
                                   <span

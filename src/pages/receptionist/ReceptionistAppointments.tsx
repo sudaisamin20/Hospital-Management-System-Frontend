@@ -6,12 +6,10 @@ import {
   Check,
   Eye,
   X,
-  Filter,
   Search,
   RefreshCw,
   User,
   Phone,
-  Mail,
   BadgeCheck,
   Trash,
 } from "lucide-react";
@@ -20,6 +18,9 @@ import toast from "react-hot-toast";
 import useModal from "../../hooks/useModal";
 import Modal from "../../components/Modal";
 import { useSelector } from "react-redux";
+import { useSocket } from "../../hooks/useSocket";
+import { useSocketEvent } from "../../hooks/useSocketEvent";
+import { useNotification } from "../../hooks";
 
 interface Appointment {
   _id: string;
@@ -44,7 +45,7 @@ const ReceptionistAppointments = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-  const [selectedApt, setSelectedApt] = useState<Appointment>({});
+  const [selectedApt, setSelectedApt] = useState<Appointment | null>({});
   const baseurl = import.meta.env.VITE_BASE_URL;
 
   const getStatusColor = (status: string) => {
@@ -104,6 +105,7 @@ const ReceptionistAppointments = () => {
       }
     }
   };
+
   useEffect(() => {
     if (receptionist?.id) {
       const fetchAllAptsData = async () => {
@@ -113,6 +115,21 @@ const ReceptionistAppointments = () => {
       fetchAllAptsData();
     }
   }, [receptionist?.id]);
+
+  useSocket(receptionist);
+  useSocketEvent("newAppointment", (data: any) => {
+    setAppointments((prev) => {
+      const exists = prev.find((a) => a._id === data.appointment._id);
+      if (exists) return prev;
+
+      const updated = [data.appointment, ...prev];
+      return updated.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    });
+    toast.success("New appointment added! See details for confirmation.");
+  });
 
   const handleConfirmApt = async (id: string) => {
     try {
@@ -187,10 +204,12 @@ const ReceptionistAppointments = () => {
   const filteredAppointments = appointments.filter((apt) => {
     const matchesSearch =
       apt.patientId?.fullName
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      apt.doctorId?.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apt.patientId?._id.toLowerCase().includes(searchTerm.toLowerCase());
+        ?.toLowerCase()
+        ?.includes(searchTerm?.toLowerCase()) ||
+      apt.doctorId?.fullName
+        ?.toLowerCase()
+        ?.includes(searchTerm?.toLowerCase()) ||
+      apt.patientId?._id?.toLowerCase()?.includes(searchTerm?.toLowerCase());
 
     const matchesStatus = statusFilter === "all" || apt.status === statusFilter;
     const matchesDate = !dateFilter || apt.aptDate === dateFilter;
@@ -356,7 +375,7 @@ const ReceptionistAppointments = () => {
               className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Departments</option>
-              {departments.map((dept) => (
+              {departments?.map((dept) => (
                 <option key={dept} value={dept}>
                   {dept}
                 </option>
@@ -595,9 +614,9 @@ const ReceptionistAppointments = () => {
                 : ""
           }
           onConfirm={
-            (selectedApt.status === "Comfirmed" ||
-              selectedApt.status === "Completed") &&
-            selectedApt.confirmedAt &&
+            (selectedApt?.status === "Comfirmed" ||
+              selectedApt?.status === "Completed") &&
+            selectedApt?.confirmedAt &&
             modalType === "viewDetail"
               ? () => toast.error("This appointment is already completed!")
               : modalType === "viewDetail"
@@ -607,8 +626,8 @@ const ReceptionistAppointments = () => {
                   : undefined
           }
           onCancel={
-            selectedApt.status === "Completed" &&
-            selectedApt.completedAt &&
+            selectedApt?.status === "Completed" &&
+            selectedApt?.completedAt &&
             modalType === "viewDetail"
               ? () => toast.error("This appointment is already completed!")
               : modalType === "viewDetail"
@@ -648,8 +667,8 @@ const ReceptionistAppointments = () => {
               ? "border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-medium"
               : "bg-green-600 hover:bg-green-700 text-white"
           }
-          width={modalType === "deleteApt" ? "" : "w-2/3"}
-          height={modalType === "deleteApt" ? "h-20" : "h-96"}
+          width="max-w-2/3"
+          height="max-h-[450px]"
           confirmColor={
             modalType === "deleteApt"
               ? "bg-red-700 hover:bg-red-400 text-white border-0"

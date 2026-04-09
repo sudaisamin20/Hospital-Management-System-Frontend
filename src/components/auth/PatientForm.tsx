@@ -5,6 +5,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { login } from "../../features/auth/authSlice";
 import { User } from "lucide-react";
 import toast from "react-hot-toast";
+import { axiosInstance, loginApi } from "../../api";
+import { API_ENDPOINTS } from "../../constants/apiRoutes";
+import { useLogin } from "../../features";
 
 interface patientData {
   id: string;
@@ -33,8 +36,7 @@ const PatientForm = (props: propsType) => {
     password: "",
     role: props.role,
   });
-  const dispatch = useDispatch();
-
+  const login = useLogin();
   const navigate = useNavigate();
 
   const handleChange = (
@@ -50,22 +52,12 @@ const PatientForm = (props: propsType) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const baseurl: string = import.meta.env.VITE_BASE_URL;
-      const response = await axios.post<ApiResponse>(
-        `${baseurl}/api/patient/auth/login`,
-        formData,
-      );
-      console.log(response.data);
-      if (response.data.success) {
-        const userData = {
-          ...response.data.patient!,
-          token: response.data.token,
-        };
-        dispatch(login(userData));
-          toast.success(response.data.message);
-          setTimeout(() => {
-            navigate("/patient/dashboard");
-          }, 1000);
+      const response = await login(API_ENDPOINTS.AUTH.PATIENT_LOGIN, formData);
+      if (response?.success) {
+        toast.success(response.message);
+        setTimeout(() => {
+          navigate("/patient/dashboard");
+        }, 1000);
       }
     } catch (error) {
       if (error instanceof Error) {

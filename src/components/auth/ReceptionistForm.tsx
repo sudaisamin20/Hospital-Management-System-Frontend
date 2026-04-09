@@ -4,6 +4,8 @@ import toast from "react-hot-toast";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../features/auth/authSlice";
+import { loginApi } from "../../api";
+import { API_ENDPOINTS } from "../../constants/apiRoutes";
 
 interface receptionistData {
   id: string;
@@ -46,15 +48,14 @@ const ReceptionistForm = () => {
     e.preventDefault();
     console.log("inside submit function");
     try {
-      const baseurl: string = import.meta.env.VITE_BASE_URL;
-      const response = await axios.post<ApiResponse>(
-        `${baseurl}/api/receptionist/auth/login`,
+      const response = await loginApi(
+        API_ENDPOINTS.AUTH.RECEPTIONIST_LOGIN,
         formData,
       );
       console.log(response.data);
       if (response.data.success) {
         const receptionistData = {
-          ...response.data.receptionist!,
+          ...response.data.user!,
           token: response.data.token,
         };
         dispatch(login(receptionistData));

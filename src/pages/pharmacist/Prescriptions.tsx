@@ -20,6 +20,7 @@ import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
+import { useSocket, useSocketEvent } from "../../hooks";
 
 interface Prescription {
   _id: string;
@@ -99,7 +100,7 @@ const Prescriptions = () => {
         },
         {
           headers: {
-            "auth-token": localStorage.getItem("token") || pharmacist.token,
+            "auth-token": localStorage.getItem("authToken") || pharmacist.token,
           },
         },
       );
@@ -111,7 +112,7 @@ const Prescriptions = () => {
     } catch (error) {
       if (error instanceof Error) {
         console.error("Error dispensing prescription:", error.message);
-        toast.error(error.message);
+        toast.error(error.response.data.message);
       }
     }
   };
@@ -120,6 +121,11 @@ const Prescriptions = () => {
     window.open(`${baseurl}/images/pdfs/${resultPDF}`, "_blank");
     toast.success("Downloading lab report...");
   };
+
+  useSocket(pharmacist);
+  // useSocketEvent("notification", (data: any) => {
+  //   if(data.pres)
+  // })
 
   useEffect(() => {
     const fetchData = async () => {

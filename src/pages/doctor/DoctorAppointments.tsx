@@ -6,8 +6,6 @@ import {
   Check,
   Eye,
   X,
-  Filter,
-  Search,
   User,
   BadgeCheck,
   XCircle,
@@ -24,6 +22,12 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
 import AsyncSelect from "react-select/async";
+import { useLocation } from "react-router-dom";
+import type { TableColumn } from "../../components/table/DataTable";
+import DataTable from "../../components/table/DataTable";
+import TableFilters from "../../components/filter/TableFilters";
+import { useSocket } from "../../hooks/useSocket";
+import { useSocketEvent } from "../../hooks/useSocketEvent";
 
 interface Appointment {
   _id: string;
@@ -60,14 +64,18 @@ interface Appointment {
 
 const DoctorAppointments = () => {
   const doctor = useSelector((state: any) => state.auth.user);
+  const location = useLocation();
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState(location.state?.aptId || "");
+  const [statusFilter, setStatusFilter] = useState<string>(
+    location.state?.status || "All",
+  );
+  const [dateFilter, setDateFilter] = useState(location.state?.date || "");
   const baseurl = import.meta.env.VITE_BASE_URL;
+  const [loading, setLoading] = useState<boolean>(false);
   const [resFormData, setResFormData] = useState({
     rescheduleReason: "",
     addDetails: "",
@@ -161,6 +169,7 @@ const DoctorAppointments = () => {
   };
 
   const fetchDoctorAppointments = async () => {
+    setLoading(true);
     try {
       const response = await axios.get(
         `${baseurl}/api/appointment/fetch/doctor-appointments/${doctor.id}`,
@@ -172,38 +181,30 @@ const DoctorAppointments = () => {
       if (error instanceof Error) {
         console.error("Error fetching appointments:", error.message);
         toast.error(error.message);
-      } else {
-        console.error("Unexpected error:", error);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
-    try {
-      const response = await axios.put(
-        `${baseurl}/api/appointment/update-status`,
-        { id, status: newStatus },
+  useSocket(doctor);
+  useSocketEvent("appointmentConfirmed", (data: any) => {
+    setAppointments((prev) => {
+      const updated = [data.appointment, ...prev];
+      return updated.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
-      if (response.data.success) {
-        toast.success(response.data.message);
-        fetchDoctorAppointments();
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error during registration:", error.message);
-        toast.error(error?.response?.data?.message);
-      } else {
-        console.error("Unexpected error during registration:", error);
-      }
-    }
-  };
+    });
+    toast.success("New appointment confirmed! See details.");
+  });
 
   useEffect(() => {
     if (doctor?.id) {
-      const fetchDoctAptsData = async () => {
+      const fetchData = async () => {
         await fetchDoctorAppointments();
       };
-      fetchDoctAptsData();
+      fetchData();
     }
   }, [doctor?.id]);
 
@@ -233,8 +234,6 @@ const DoctorAppointments = () => {
       price: test.price,
     }));
   };
-
-  console.log(consultationData);
 
   const handleDocAptRes = async (id: string, doctorId: string) => {
     try {
@@ -319,12 +318,13 @@ const DoctorAppointments = () => {
   // Filter appointments
   const filteredAppointments = appointments.filter((apt) => {
     const matchesSearch =
+      apt.id_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       apt.patientId?.fullName
         ?.toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       apt.patientId?.id_no?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesStatus = statusFilter === "all" || apt.status === statusFilter;
+    const matchesStatus = statusFilter === "All" || apt.status === statusFilter;
     const matchesDate = !dateFilter || apt.aptDate === dateFilter;
 
     return matchesSearch && matchesStatus && matchesDate;
@@ -453,6 +453,33 @@ const DoctorAppointments = () => {
     }
   };
 
+  const handleStartedAptTime = async (aptId: string) => {
+    try {
+      const response = await axios.put(
+        `${baseurl}/api/appointment/set-start-time`,
+        { aptId },
+        {
+          headers: {
+            "auth-token": localStorage.getItem("authToken") || doctor?.token,
+          },
+        },
+      );
+      if (response.data?.success) {
+        toast.success(response.data?.message);
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(
+          "Error during registration:",
+          error.response.data.message,
+        );
+        toast.error(error?.response.data.message);
+      } else {
+        console.error("Unexpected error during registration:", error);
+      }
+    }
+  };
+
   // Statistics
   const stats = [
     {
@@ -483,7 +510,7 @@ const DoctorAppointments = () => {
       label: "Cancelled",
       count: appointments.filter((apt) => apt.status === "Cancelled").length,
       icon: XCircle,
-      color: "red",
+      color: "purple",
     },
   ];
 
@@ -496,46 +523,94 @@ const DoctorAppointments = () => {
     return age;
   };
 
-  const testsArray = [
+  const flattenedData = filteredAppointments.map((apt) => ({
+    ...apt,
+    parentTest: apt,
+  }));
+
+  const columns: TableColumn[] = [
     {
-      id: 1,
-      testName: "Complete Blood Count (CBC)",
+      key: "patientName",
+      label: "Patient",
+      render: (_, row) => (
+        <div className="flex items-center">
+          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+            <User className="h-5 w-5 text-purple-600" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm font-medium text-gray-900">
+              {row.parentTest.patientId?.fullName}
+            </p>
+          </div>
+        </div>
+      ),
     },
     {
-      id: 2,
-      testName: "Blood Sugar",
+      key: "time&date",
+      label: "Time & Date",
+      render: (_, row) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-900">
+              {row.parentTest.appointmentTime}{" "}
+              {new Date(row.parentTest.aptDate).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+          </div>
+        </div>
+      ),
     },
     {
-      id: 3,
-      testName: "Lipid Profile",
+      key: "shift",
+      label: "Shift",
+      render: (_, row) => (
+        <span
+          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${getShiftColor(row.parentTest.shift)}`}
+        >
+          {row.parentTest.shift}
+        </span>
+      ),
     },
     {
-      id: 4,
-      testName: "Liver Function Test",
+      key: "reason",
+      label: "Reason",
+      render: (_, row) => (
+        <span className="text-sm text-gray-600 line-clamp-2">
+          {row.parentTest.reasonForVisit.slice(0, 20) +
+            (row.parentTest.reasonForVisit.length > 20 ? "..." : "")}
+        </span>
+      ),
     },
     {
-      id: 5,
-      testName: "Kidney Function Test",
+      key: "status",
+      label: "Status",
+      render: (_, row) => (
+        <span
+          className={`px-3 py-1 text-xs leading-5 font-semibold rounded-full border-0 focus:ring-2 focus:outline-none focus:ring-blue-500 ${getStatusColor(row.parentTest.status)}`}
+        >
+          {row.parentTest.status}
+        </span>
+      ),
     },
     {
-      id: 6,
-      testName: "Thyroid Function Test",
-    },
-    {
-      id: 7,
-      testName: "Urine Analysis",
-    },
-    {
-      id: 8,
-      testName: "X-Ray",
-    },
-    {
-      id: 9,
-      testName: "ECG",
-    },
-    {
-      id: 10,
-      testName: "Ultrasound",
+      key: "actions",
+      label: "Actions",
+      render: (_, row) => (
+        <button
+          onClick={() => {
+            openModal();
+            setModalType("viewDetail");
+            setSelectedApt(row.parentTest);
+          }}
+          className="text-blue-600 cursor-pointer hover:text-blue-800 font-medium text-sm"
+          title="View Details"
+        >
+          <Eye className="h-5 w-5" />
+        </button>
+      ),
     },
   ];
 
@@ -543,13 +618,13 @@ const DoctorAppointments = () => {
     <div className="min-h-screen w-full bg-gray-50 p-3">
       <div className="max-w-[1400px] mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
+        <div className="mb-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-2xl font-semibold text-gray-900">
                 My Appointments
               </h1>
-              <p className="text-gray-600 text-sm mt-2">
+              <p className="text-gray-600 text-sm mt-1">
                 Manage and track your patient appointments
               </p>
             </div>
@@ -571,77 +646,64 @@ const DoctorAppointments = () => {
             return (
               <div
                 key={index}
-                className="bg-white rounded-lg shadow-sm p-3 flex items-center justify-between"
+                className={`bg-${item.color}-100 rounded-lg shadow-sm px-4 py-3 flex items-center justify-between`}
               >
                 <div>
                   <p className="text-gray-600 text-sm font-medium">
                     {item.label}
                   </p>
                   <p
-                    className={`text-lg font-bold text-${item.color}-600 mt-1`}
+                    className={`text-lg font-bold text-${item.color}-700 mt-1`}
                   >
                     {item.count}
                   </p>
                 </div>
-                <div className={`bg-${item.color}-100 p-2 rounded-full`}>
-                  <Icon className={`h-5 w-5 text-${item.color}-600`} />
+                <div className={`bg-${item.color}-300 p-2 rounded-full`}>
+                  <Icon className={`h-5 w-5 text-${item.color}-700`} />
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2 top-1/3 transform -translate-y-1/6 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by patient name or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Confirmed">Confirmed</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-
-            {/* Date Filter */}
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Clear Filters */}
-          {(searchTerm || statusFilter !== "all" || dateFilter) && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                setDateFilter("");
-              }}
-              className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Clear all filters
-            </button>
-          )}
-        </div>
+        <TableFilters
+          searchPlaceholder="Search by appointment ID or patient ID, name..."
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={[
+            {
+              id: "status",
+              label: "Status",
+              type: "select",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { label: "All", value: "All" },
+                { label: "Pending", value: "Pending" },
+                { label: "Confirmed", value: "Confirmed" },
+                { label: "Completed", value: "Completed" },
+                { label: "Cancelled", value: "Cancelled" },
+                {
+                  label: "Reschedule Requested",
+                  value: "Reschedule Requested",
+                },
+                { label: "Rescheduled", value: "Rescheduled" },
+              ],
+            },
+            {
+              id: "date",
+              label: "Date",
+              type: "date",
+              value: dateFilter,
+              onChange: setDateFilter,
+            },
+          ]}
+          onClearAll={() => {
+            setSearchTerm("");
+            setStatusFilter("All");
+            setDateFilter("");
+          }}
+        />
 
         {/* Results Count */}
         <div className="mb-2">
@@ -659,146 +721,18 @@ const DoctorAppointments = () => {
         </div>
 
         {/* Appointments Table */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border border-gray-200 shadow-2xl">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Patient
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Department
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Time & Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Shift
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Reason
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredAppointments.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <Calendar className="h-16 w-16 text-gray-300 mb-4" />
-                        <p className="text-gray-500 text-lg font-medium">
-                          No appointments found
-                        </p>
-                        <p className="text-gray-400 mt-1">
-                          {searchTerm || statusFilter !== "all" || dateFilter
-                            ? "Try adjusting your filters"
-                            : "You don't have any appointments yet"}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAppointments.map((appointment) => (
-                    <tr
-                      key={appointment._id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      {/* Patient */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                            <User className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">
-                              {appointment.patientId?.fullName}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Department */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">
-                          {appointment.departmentId?.name}
-                        </span>
-                      </td>
-
-                      {/* Date & Time */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-900">
-                              {appointment.appointmentTime}{" "}
-                              {new Date(appointment.aptDate).toLocaleDateString(
-                                "en-US",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Shift */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${getShiftColor(appointment.shift)}`}
-                        >
-                          {appointment.shift}
-                        </span>
-                      </td>
-
-                      {/* Reason */}
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600 line-clamp-2">
-                          {appointment.reasonForVisit.slice(0, 20) +
-                            (appointment.reasonForVisit.length > 20
-                              ? "..."
-                              : "")}
-                        </span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 text-xs leading-5 font-semibold rounded-full border-0 focus:ring-2 focus:outline-none focus:ring-blue-500 ${getStatusColor(appointment.status)}`}
-                        >
-                          {appointment.status}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => {
-                            openModal();
-                            setModalType("viewDetail");
-                            setSelectedApt(appointment);
-                          }}
-                          className="text-blue-600 cursor-pointer hover:text-blue-800 font-medium text-sm"
-                          title="View Details"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          columns={columns}
+          data={flattenedData}
+          loading={loading}
+          emptyStateIcon={Calendar}
+          emptyStateTitle="No appointment found"
+          emptyStateDescription={
+            searchTerm || statusFilter !== "All" || dateFilter
+              ? "Try adjusting your filters"
+              : "No appointment today"
+          }
+        />
 
         {/* Modal */}
         <Modal
@@ -826,7 +760,10 @@ const DoctorAppointments = () => {
           }
           onConfirm={
             modalType === "viewDetail"
-              ? () => setModalType("startCons")
+              ? () => {
+                  handleStartedAptTime(selectedApt?._id);
+                  setModalType("startCons");
+                }
               : modalType === "reqRes"
                 ? () =>
                     handleDocAptRes(selectedApt?._id, selectedApt?.doctorId._id)

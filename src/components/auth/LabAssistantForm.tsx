@@ -1,9 +1,10 @@
-import axios from "axios";
 import { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../features/auth/authSlice";
 import toast from "react-hot-toast";
+import { loginApi } from "../../api";
+import { API_ENDPOINTS } from "../../constants/apiRoutes";
 
 interface labAssistantData {
   id: string;
@@ -49,14 +50,13 @@ const LabAssistantForm = (props: propsType) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const baseurl: string = import.meta.env.VITE_BASE_URL;
-      const response = await axios.post<ApiResponse>(
-        `${baseurl}/api/lab/auth/login/lab-assistant`,
+      const response = await loginApi(
+        API_ENDPOINTS.AUTH.LAB_ASSISTANT_LOGIN,
         formData,
       );
       if (response.data.success) {
         const userData = {
-          ...response.data.labAssistant!,
+          ...response.data.user!,
           token: response.data.token,
         };
         dispatch(login(userData));
@@ -67,7 +67,10 @@ const LabAssistantForm = (props: propsType) => {
       }
     } catch (error) {
       if (error instanceof Error) {
-        console.error("Error during lab assistant login:", error.message);
+        console.error(
+          "Error during lab assistant login:",
+          error.response.data.message,
+        );
         toast.error(error.response.data.message);
       } else {
         console.error("Unexpected error during lab assistant login:", error);

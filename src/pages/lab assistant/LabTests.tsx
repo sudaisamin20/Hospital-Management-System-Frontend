@@ -93,8 +93,6 @@ const LabTests = () => {
     remarks: "",
   });
   const baseurl = import.meta.env.VITE_BASE_URL;
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [inputFile, setInputFile] = useState("");
   const [testData, setTestData] = useState<ITestData>({});
 
   const fetchLabTests = async () => {
@@ -110,7 +108,6 @@ const LabTests = () => {
       );
       if (response.data.success) {
         setLabTests(response.data.labTests);
-        console.log(response.data.labTests);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -192,13 +189,6 @@ const LabTests = () => {
       fetchData();
     }
   }, [labAssistant?.id]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setInputFile(file);
-    }
-  };
 
   // Filter lab tests
   const filteredLabTests = labTests?.filter((labTest) => {
@@ -326,8 +316,6 @@ const LabTests = () => {
     const updatedResults = testResultData.results.filter((_, i) => i !== index);
     setTestResultData({ ...testResultData, results: updatedResults });
   };
-
-  console.log(testResultData);
 
   return (
     <div className="min-h-screen w-full bg-gray-50 p-3">
@@ -764,9 +752,14 @@ const LabTests = () => {
                       }`}
                     >
                       <div className="flex items-start justify-between">
-                        <h5 className="text-sm font-bold text-gray-900">
-                          {test.testName}
-                        </h5>
+                        <div>
+                          <h5 className="text-sm font-bold text-gray-900">
+                            {test.testName}
+                          </h5>
+                          <h6 className="text-xs font-semibold text-gray-700">
+                            Test ID: {test.id_no}
+                          </h6>
+                        </div>
                         <span
                           className={`px-2 py-1 text-xs font-semibold rounded-full border ${getStatusColor(test.status)}`}
                         >

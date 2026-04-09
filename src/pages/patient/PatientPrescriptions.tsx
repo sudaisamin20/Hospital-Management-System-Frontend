@@ -21,6 +21,8 @@ import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
+import { useAppSelector, useSocket, useSocketEvent } from "../../hooks";
+import { useLogin } from "../../features";
 
 interface Prescription {
   _id: string;
@@ -68,8 +70,8 @@ interface Prescription {
   updatedAt: string;
 }
 
-const Prescriptions = () => {
-  const patient = useSelector((state: any) => state.auth.user);
+const PatientPrescriptions = () => {
+  const patient = useAppSelector((state: any) => state.auth.user);
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -105,6 +107,22 @@ const Prescriptions = () => {
     window.open(`${baseurl}/images/pdfs/${prescriptionId}`, "_blank");
     toast.success("Downloading prescription...");
   };
+
+  useSocket(patient);
+  useSocketEvent("prescriptionDispensed", (data: any) => {
+    if (data.prescription) {
+      setPrescriptions((prev) => {
+        const updated = [data.prescription, ...prev];
+        return updated.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      });
+      toast.success(
+        `Your prescription is dispensed! Prescription ID is ${data.prescription.id_no}`,
+      );
+    }
+  });
 
   useEffect(() => {
     if (patient?.id) {
@@ -181,16 +199,16 @@ const Prescriptions = () => {
 
   return (
     <div className="min-h-screen w-full bg-gray-50 p-3">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
+        <div className="mb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-green-100 p-3 rounded-full">
                 <FileText className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
+                <h1 className="text-2xl font-semibold text-gray-900">
                   My Prescriptions
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm">
@@ -202,25 +220,25 @@ const Prescriptions = () => {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
           {stats.map((item, index) => {
             const Icon = item.icon;
             return (
               <div
                 key={index}
-                className="bg-white rounded-lg shadow-sm p-3 flex items-center justify-between"
+                className={`bg-${item.color}-100 rounded-xl shadow-sm px-4 py-3 flex items-center justify-between`}
               >
                 <div>
                   <p className="text-gray-600 text-sm font-medium">
                     {item.label}
                   </p>
                   <p
-                    className={`text-lg font-bold text-${item.color}-600 mt-1`}
+                    className={`text-xl font-semibold text-${item.color}-600 mt-1`}
                   >
                     {item.value}
                   </p>
                 </div>
-                <div className={`bg-${item.color}-100 p-2 rounded-full`}>
+                <div>
                   <Icon className={`h-5 w-5 text-${item.color}-600`} />
                 </div>
               </div>
@@ -229,17 +247,17 @@ const Prescriptions = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-2">
+        <div className="mb-2">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-2 top-1/3 transform -translate-y-1/6 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-2 top-1/3 transform -translate-y-1/4 h-5 w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search by doctor, medicine, ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
+                className="text-sm w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300"
               />
             </div>
 
@@ -247,7 +265,7 @@ const Prescriptions = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
+              className="text-sm p-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300"
             >
               <option value="all">All Status</option>
               <option value="Dispensed">Dispensed</option>
@@ -259,7 +277,7 @@ const Prescriptions = () => {
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
+              className="text-sm p-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300"
             />
           </div>
 
@@ -666,4 +684,4 @@ const Prescriptions = () => {
   );
 };
 
-export default Prescriptions;
+export default PatientPrescriptions;

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { login } from "../../features/auth/authSlice";
 import axios from "axios";
 import { useState } from "react";
+import { API_ENDPOINTS } from "../../constants/apiRoutes";
 
 interface superAdminData {
   id: string;
@@ -17,7 +18,7 @@ interface superAdminData {
 interface ApiResponse {
   success: boolean;
   message: string;
-  patient: superAdminData;
+  user: superAdminData;
   token: string;
 }
 
@@ -51,15 +52,14 @@ const SuperAdminForm = (props: propsType) => {
     e.preventDefault();
     console.log("inside submit function");
     try {
-      const baseurl: string = import.meta.env.VITE_BASE_URL;
       const response = await axios.post<ApiResponse>(
-        `${baseurl}/api/superadmin/auth/login`,
+        API_ENDPOINTS.AUTH.SUPERADMIN_LOGIN,
         formData,
       );
       console.log(response.data);
       if (response.data.success) {
         const superAdminData = {
-          ...response.data.superAdmin!,
+          ...response.data.user!,
           token: response.data.token,
         };
         dispatch(login(superAdminData));

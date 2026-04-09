@@ -4,6 +4,8 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../features/auth/authSlice";
 import toast from "react-hot-toast";
+import { loginApi } from "../../api";
+import { API_ENDPOINTS } from "../../constants/apiRoutes";
 
 interface pharmacistData {
   id: string;
@@ -33,7 +35,6 @@ const PharmacistForm = (props: propsType) => {
     role: props.role,
   });
   const dispatch = useDispatch();
-
   const navigate = useNavigate();
 
   const handleChange = (
@@ -49,15 +50,13 @@ const PharmacistForm = (props: propsType) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const baseurl: string = import.meta.env.VITE_BASE_URL;
-      const response = await axios.post<ApiResponse>(
-        `${baseurl}/api/pharmacist/auth/login`,
+      const response = await loginApi(
+        API_ENDPOINTS.AUTH.PHARMACIST_LOGIN,
         formData,
       );
-      console.log(response.data);
       if (response.data.success) {
         const userData = {
-          ...response.data.pharmacist!,
+          ...response.data.user!,
           token: response.data.token,
         };
         dispatch(login(userData));

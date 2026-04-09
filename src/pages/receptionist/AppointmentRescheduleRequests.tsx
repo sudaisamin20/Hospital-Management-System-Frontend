@@ -590,8 +590,8 @@ const AppointmentRescheduleRequests = () => {
             modalType === "viewRequest" ? "Reschedule Request Details" : ""
           }
           onClose={closeModal}
-          width="w-2/3"
-          height={modalType === "viewRequest" ? "h-96" : "h-40"}
+          width="max-w-2/3"
+          height="max-h-[450px]"
           onConfirm={
             modalType === "viewRequest"
               ? () =>

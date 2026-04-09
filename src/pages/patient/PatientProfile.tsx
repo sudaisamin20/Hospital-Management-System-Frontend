@@ -20,6 +20,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { login } from "../../features/auth/authSlice";
 import Modal from "../../components/Modal";
 import useModal from "../../hooks/useModal";
+import { useUpdateProfile } from "../../features";
 
 interface PatientData {
   _id: string;
@@ -96,6 +97,7 @@ const EditableField = ({
 const PatientProfile = () => {
   const patient = useSelector((state: any) => state.auth.user);
   const dispatch = useDispatch();
+  const updateProfile = useUpdateProfile();
   const baseurl = import.meta.env.VITE_BASE_URL;
   const { isOpen, openModal, closeModal } = useModal();
 
@@ -211,15 +213,15 @@ const PatientProfile = () => {
       if (response.data.success) {
         toast.success(response.data.message);
         fetchProfile();
-        const payload = {
-          ...response.data.patient,
+        updateProfile({
+          id: response.data.patient._id,
+          id_no: response.data.id_no,
+          fullName: response.data.patient.fullName,
+          email: response.data.patient.email,
+          role: response.data.patient.role,
           token: localStorage.getItem("authToken") || patient.token,
-        };
-        dispatch(login(payload));
+        });
         closeModal();
-        setSelectedImage(null);
-        setImagePreview("");
-        fetchProfile();
       }
     } catch (error: any) {
       console.error("Error updating profile:", error.message);

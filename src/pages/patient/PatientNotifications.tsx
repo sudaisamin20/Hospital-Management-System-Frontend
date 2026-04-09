@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Trash2,
   Eye,
-  Filter,
   MailOpen,
   X,
   FlaskConical,
@@ -18,91 +17,17 @@ import {
 import useModal from "../../hooks/useModal";
 import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
-import axios from "axios";
 import { useSelector } from "react-redux";
+import {
+  deleteNotificationApi,
+  getAllNotificationsApi,
+  markAllasReadNotificationApi,
+  markAsReadNotificationApi,
+  type Notification,
+} from "../../api";
+import { useSocket, useSocketEvent } from "../../hooks";
 
-interface DepartmentId {
-  _id: string;
-  name: string;
-}
-
-interface DoctorId {
-  _id: string;
-  fullName: string;
-  role: string;
-  photo: string;
-}
-
-interface PatientId {
-  _id: string;
-  fullName: string;
-  role: string;
-}
-
-interface SpecialistId {
-  _id: string;
-  name: string;
-}
-
-interface AptId {
-  _id: string;
-  id_no: string;
-  aptDate: string;
-  appointmentTime: string;
-  shift: string;
-  status: string;
-  rescheduleStatus?: string;
-  rescheduleReason?: string;
-  oldAptDate?: string;
-  oldAptTime?: string;
-  oldShiftApt?: string;
-  patientId: PatientId;
-  doctorId: DoctorId;
-  departmentId: DepartmentId;
-  specialistId?: SpecialistId;
-  reasonForVisit?: string;
-  rescheduleRequestedAt?: string;
-  rescheduledAt?: string;
-}
-
-interface Notification {
-  _id: string;
-  userId: string;
-  title: string;
-  message: string;
-  aptId?: AptId;
-  notificationType?: "appointment" | "lab" | "prescription" | "general";
-  labOrder?: {
-    labOrderId: string;
-    testName: string;
-    testId: string;
-    status: string;
-    results: any[];
-    remarks: string;
-    resultPDF: string;
-    completedAt: string;
-  };
-  prescription?: {
-    prescriptionId: string;
-    status: string;
-    medicines: Array<{
-      medicineName: string;
-      dosage: number;
-      frequency: number;
-      duration: number;
-      unit: string;
-      note: string;
-    }>;
-    resultPDF: string;
-    totalAmount: number;
-    dispensedAt: string;
-  };
-  isRead: boolean;
-  createdAt: string;
-  __v?: number;
-}
-
-const Notifications = () => {
+const PatienNotifications = () => {
   const patient = useSelector((state: any) => state.auth.user);
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
@@ -116,7 +41,7 @@ const Notifications = () => {
   // Derive notification type from aptId fields or notificationType
   const getNotificationType = (notification: Notification): string => {
     // Check for explicit notification type first
-    if (notification.notificationType === "lab") return "lab_test";
+    if (notification.notificationType === "lab_test") return "lab_test";
     if (notification.notificationType === "prescription")
       return "prescription_dispensed";
 
@@ -177,11 +102,9 @@ const Notifications = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get(
-        `${baseurl}/api/appointment/fetch/notifications/${patient.id}`,
-      );
+      const response = await getAllNotificationsApi();
       if (response.data.success) {
-        setNotifications(response.data.patNots);
+        setNotifications(response.data.notifications);
       }
     } catch (error: any) {
       console.error("Error fetching notifications:", error.message);
@@ -193,15 +116,7 @@ const Notifications = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const response = await axios.put(
-        `${baseurl}/api/patient/notification/mark-read/${notificationId}`,
-        {},
-        {
-          headers: {
-            "auth-token": localStorage.getItem("authToken") || patient?.token,
-          },
-        },
-      );
+      const response = await markAsReadNotificationApi(notificationId);
       if (response.data.success) {
         setNotifications((prev) =>
           prev.map((notif) =>
@@ -218,15 +133,7 @@ const Notifications = () => {
 
   const markAllAsRead = async () => {
     try {
-      const response = await axios.put(
-        `${baseurl}/api/patient/notification/mark-all-read`,
-        {},
-        {
-          headers: {
-            "auth-token": localStorage.getItem("authToken") || patient?.token,
-          },
-        },
-      );
+      const response = await markAllasReadNotificationApi();
       if (response.data.success) {
         fetchNotifications();
         toast.success(response.data.message);
@@ -239,14 +146,7 @@ const Notifications = () => {
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      const response = await axios.delete(
-        `${baseurl}/api/patient/notification/delete/${notificationId}`,
-        {
-          headers: {
-            "auth-token": localStorage.getItem("authToken") || patient?.token,
-          },
-        },
-      );
+      const response = await deleteNotificationApi(notificationId);
       if (response.data.success) {
         fetchNotifications();
         toast.success(response.data.message);
@@ -260,6 +160,21 @@ const Notifications = () => {
       toast.error(error?.response.data.message);
     }
   };
+
+  useSocket(patient);
+  useSocketEvent("newNotification", (data: any) => {
+    console.log(data);
+    if (data.patNot) {
+      setNotifications((prev) => {
+        const updated = [data.patNot, ...prev];
+        return updated.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      });
+      toast.success("New notification received!");
+    }
+  });
 
   useEffect(() => {
     if (patient?.id) {
@@ -573,7 +488,7 @@ const Notifications = () => {
                         )}
 
                         {/* Lab Order */}
-                        {notification.notificationType === "lab" && (
+                        {notification.notificationType === "lab_test" && (
                           <div className="bg-gray-50 rounded-lg p-4 mb-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                               <div>
@@ -602,7 +517,9 @@ const Notifications = () => {
                               </div>
                               <div>
                                 <span className="text-gray-600 font-medium">
-                                  Completed At:{" "}
+                                  {notification.labOrder.completedAt
+                                    ? "Completed At:"
+                                    : "Started At: "}{" "}
                                 </span>
                                 <span className="text-gray-900">
                                   {notification.labOrder?.completedAt
@@ -618,7 +535,20 @@ const Notifications = () => {
                                         minute: "2-digit",
                                         hour: "2-digit",
                                       })}`
-                                    : "N/A"}
+                                    : notification?.createdAt
+                                      ? `${new Date(
+                                          notification.createdAt,
+                                        ).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "numeric",
+                                          year: "numeric",
+                                        })}, ${new Date(
+                                          notification.createdAt,
+                                        ).toLocaleTimeString("en-US", {
+                                          minute: "2-digit",
+                                          hour: "2-digit",
+                                        })}`
+                                      : "N/A"}
                                 </span>
                               </div>
                             </div>
@@ -808,7 +738,7 @@ const Notifications = () => {
                   </div>
 
                   {/* Lab Test Details */}
-                  {selectedNotification.notificationType === "lab" && (
+                  {selectedNotification.notificationType === "lab_test" && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Lab Test Results
@@ -1373,4 +1303,4 @@ const Notifications = () => {
   );
 };
 
-export default Notifications;
+export default PatienNotifications;

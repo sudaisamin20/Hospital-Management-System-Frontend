@@ -1,34 +1,68 @@
 import "./App.css";
-import Home from "./pages/Home";
 import { Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import SidebarContentPage from "./components/sidebar/SidebarContentPage";
-import PatientDashboard from "./pages/patient/PatientDashboard";
-import LearnMore from "./pages/LearnMore";
-import { useLoadUser } from "./hooks/FetchDataFromLS";
-import SuperAdminDashboard from "./pages/super admin/SuperAdminDashboard";
-import Patients from "./pages/super admin/Patients";
-import StaffManagement from "./pages/super admin/StaffManagement";
-import MyAppointments from "./pages/patient/MyAppointments";
-import ReceptionistDashboard from "./pages/receptionist/ReceptionistDashboard";
-import ReceptionistAppointments from "./pages/receptionist/ReceptionistAppointments";
-import DoctorDashboard from "./pages/doctor/DoctorDashboard";
-import DoctorAppointments from "./pages/doctor/DoctorAppointments";
-import AppointmentRescheduleRequests from "./pages/receptionist/AppointmentRescheduleRequests";
-import Notifications from "./pages/patient/Notifications";
-import PharmacistDashboard from "./pages/pharmacist/PharmacistDashboard";
-import Prescriptions from "./pages/pharmacist/Prescriptions";
-import Inventory from "./pages/pharmacist/Inventory";
-import PharmacistProfile from "./pages/pharmacist/PharmacistProfile";
-import LabAssistantDashboard from "./pages/lab assistant/LabAssistantDashboard";
-import LabTests from "./pages/lab assistant/LabTests";
-import LabAssistantProfile from "./pages/lab assistant/LabAssistantProfile";
-import DispensedHistory from "./pages/pharmacist/DispensedHistory";
-import PatientPrescriptions from "./pages/patient/Prescriptions";
-import LabReports from "./pages/patient/LabReports";
-import PatientProfile from "./pages/patient/PatientProfile";
-import MedicalRecords from "./pages/patient/MedicalRecords";
+
+// Shared Pages
+import { Home, LearnMore, Login, Signup } from "./pages";
+
+// Components
+import { SidebarContentPage } from "./components/sidebar";
+
+// Hooks
+import { useLoadUser } from "./hooks";
+
+// Patient Pages
+import {
+  BookAppointment,
+  LabReports,
+  MedicalRecords,
+  MyAppointments,
+  PatientNotifications,
+  PatientDashboard,
+  PatientPrescriptions,
+  PatientProfile,
+} from "./pages/patient";
+
+// Doctor Pages
+import {
+  DoctorAppointments,
+  DoctorDashboard,
+  DoctorLabTestReports,
+  DoctorPatientProfile,
+  DoctorPrescriptions,
+  DoctorProfile,
+  Patients as DoctorPatients,
+  DoctorNotifications,
+} from "./pages/doctor";
+
+// Receptionist Pages
+import {
+  AppointmentRescheduleRequests,
+  ReceptionistAppointments,
+  ReceptionistDashboard,
+} from "./pages/receptionist";
+
+// Pharmacist Pages
+import {
+  DispensedHistory,
+  Inventory,
+  PharmacistDashboard,
+  PharmacistProfile,
+  Prescriptions,
+} from "./pages/pharmacist";
+
+// Lab Assistant Pages
+import {
+  LabAssistantDashboard,
+  LabAssistantProfile,
+  LabTests,
+} from "./pages/lab assistant";
+
+// Super Admin Pages
+import {
+  Patients,
+  StaffManagement,
+  SuperAdminDashboard,
+} from "./pages/super admin";
 
 function App() {
   useLoadUser();
@@ -42,9 +76,10 @@ function App() {
         <Route path="/patient" element={<SidebarContentPage />}>
           <Route index element={<Navigate to="/patient/dashboard" />} />
           <Route path="dashboard" element={<PatientDashboard />} />
+          <Route path="book-appointment" element={<BookAppointment />} />
           <Route path="my-appointments" element={<MyAppointments />} />
           <Route path="records" element={<MedicalRecords />} />
-          <Route path="notifications" element={<Notifications />} />
+          <Route path="notifications" element={<PatientNotifications />} />
           <Route path="prescriptions" element={<PatientPrescriptions />} />
           <Route path="lab-reports" element={<LabReports />} />
           <Route path="profile" element={<PatientProfile />} />
@@ -62,6 +97,15 @@ function App() {
           <Route index element={<Navigate to="/doctor/dashboard" />} />
           <Route path="dashboard" element={<DoctorDashboard />} />
           <Route path="appointments" element={<DoctorAppointments />} />
+          <Route path="patients" element={<DoctorPatients />} />
+          <Route
+            path="patients/patient-profile/:patientId"
+            element={<DoctorPatientProfile />}
+          />
+          <Route path="prescriptions" element={<DoctorPrescriptions />} />
+          <Route path="lab-test-reports" element={<DoctorLabTestReports />} />
+          <Route path="profile" element={<DoctorProfile />} />
+          <Route path="notifications" element={<DoctorNotifications />} />
         </Route>
         <Route path="/superadmin" element={<SidebarContentPage />}>
           <Route index element={<Navigate to="/superadmin/dashboard" />} />

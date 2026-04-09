@@ -24,6 +24,7 @@ import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
+import { useSocket, useSocketEvent } from "../../hooks";
 
 interface LabReport {
   _id: string;
@@ -136,6 +137,37 @@ const LabReports = () => {
     }
   };
 
+  useSocket(patient);
+  useSocketEvent("labTestStart", (data: any) => {
+    if (data.test) {
+      setLabReports((prev: any) =>
+        prev.map((report: any) => ({
+          ...report,
+          tests: report.tests.map((t: any) =>
+            t.id_no === data.test.id_no ? { ...t, status: "In Progress" } : t,
+          ),
+        })),
+      );
+      toast.success(`Lab test started! Test ID is ${data.test.id_no}.`);
+    }
+  });
+
+  useSocketEvent("labTestResultSubmit", (data: any) => {
+    if (data.test) {
+      setLabReports((prev: any) =>
+        prev.map((report: any) => ({
+          ...report,
+          tests: report.tests.map((t: any) =>
+            t.id_no === data.test.id_no ? { ...t, status: "Completed" } : t,
+          ),
+        })),
+      );
+      toast.success(
+        `Lab test completed. Results uploaded. Test ID: ${data.test.id_no}.`,
+      );
+    }
+  });
+
   useEffect(() => {
     if (patient?.id) {
       const fetchData = async () => {
@@ -193,7 +225,7 @@ const LabReports = () => {
   };
 
   // Statistics
-  const totalTests = labReports.reduce(
+  const totalTests = labReports?.reduce(
     (sum, report) => sum + report.tests.length,
     0,
   );

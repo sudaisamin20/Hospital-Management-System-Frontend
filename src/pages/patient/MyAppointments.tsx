@@ -21,6 +21,7 @@ import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
+import { useSocket, useSocketEvent } from "../../hooks";
 
 interface Appointment {
   _id: string;
@@ -40,7 +41,7 @@ const MyAppointments = () => {
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [selectedApt, setSelectedApt] = useState<Appointment>({});
+  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [departments, setDepartments] = useState([]);
   const [specialists, setSpecialists] = useState([]);
   const [dept, setDept] = useState("");
@@ -113,7 +114,6 @@ const MyAppointments = () => {
       [name]: value,
     });
   };
-  console.log(patient);
   const fetchDepartments = async () => {
     try {
       const response = await axios.get(
@@ -210,6 +210,20 @@ const MyAppointments = () => {
       }
     }
   };
+
+  useSocket(patient);
+  useSocketEvent("appointmentConfirmed", (data: any) => {
+    setAppointments((prev) => {
+      const updated = [data.appointment, ...prev];
+      return updated.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    });
+    toast.success(
+      `Your appointment with ${data.appointment.doctorId.fullName} confirmed on your date ${data.appointment.aptDate} at ${data.appointment.appointmentTime}!.`,
+    );
+  });
 
   useEffect(() => {
     if (patient?.id) {
@@ -498,7 +512,7 @@ const MyAppointments = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-gray-600">
-                          {appointment.reasonForVisit}
+                          {`${appointment.reasonForVisit.slice(0, 20)}${appointment.reasonForVisit.length > 20 ? "..." : ""}`}
                         </span>
                       </td>
                       <td className="px-6 py-4">

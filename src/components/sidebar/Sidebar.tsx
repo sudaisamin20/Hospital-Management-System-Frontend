@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useLocation, Link } from "react-router-dom";
 import { LogOut, Menu, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -6,9 +6,22 @@ import useModal from "../../hooks/useModal";
 import Modal from "../Modal";
 import { useDispatch } from "react-redux";
 import { logout } from "../../features/auth/authSlice";
+import { useNotification } from "../../hooks";
+import {
+  getUnReadCountsApi,
+  markAsSeenAppointmentsApi,
+  markAsSeenLabOrdersApi,
+  markAsSeenNotificationsApi,
+  markAsSeenPrescriptionsApi,
+} from "../../api/index";
 
 type SidebarProps = {
-  sidebarElements: { title: string; path: string; icon: React.ReactNode }[];
+  sidebarElements: {
+    title: string;
+    path: string;
+    icon: React.ReactNode;
+    newAdded: boolean;
+  }[];
 };
 
 const Sidebar = (props: SidebarProps) => {
@@ -18,6 +31,17 @@ const Sidebar = (props: SidebarProps) => {
   const navigate = useNavigate();
   const { openModal, closeModal, isOpen: isModalOpen } = useModal();
   const dispatch = useDispatch();
+  const [isHovering, setIsHovering] = useState(false);
+  const sidebarRef = useRef(null);
+  const { unreadCount, setUnreadCount } = useNotification();
+
+  const handleMouseEnter = () => {
+    setIsHovering(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+  };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -27,6 +51,62 @@ const Sidebar = (props: SidebarProps) => {
     closeModal();
   };
 
+  console.log(unreadCount);
+  const handleItemClick = async (title: string) => {
+    try {
+      if (title === "Appointments") {
+        await markAsSeenAppointmentsApi();
+      }
+
+      if (title === "My Appointments") {
+        await markAsSeenAppointmentsApi();
+      }
+
+      if (title === "Lab Orders") {
+        await markAsSeenLabOrdersApi();
+      }
+
+      if (title === "Lab Reports") {
+        await markAsSeenLabOrdersApi();
+      }
+
+      if (title === "Notifications") {
+        const response = await markAsSeenNotificationsApi();
+        console.log(response.data.message);
+      }
+
+      if (title === "Prescriptions") {
+        const res = await markAsSeenPrescriptionsApi();
+        console.log(res.data.message);
+      }
+
+      const res = await getUnReadCountsApi();
+      setUnreadCount(res.data.counts);
+    } catch (err) {
+      console.error("Error marking as seen:", err);
+    }
+  };
+
+  const getCount = (title: string) => {
+    switch (title) {
+      case "Appointments":
+        return unreadCount.appointments;
+      case "My Appointments":
+        return unreadCount.appointments;
+      case "Lab Orders":
+        return unreadCount.labOrders;
+      case "Lab Reports":
+        return unreadCount.labOrders;
+      case "Prescriptions":
+        return unreadCount.prescriptions;
+      case "Notifications":
+        return unreadCount.notifications;
+      default:
+        return 0;
+    }
+  };
+
+  console.log(unreadCount);
   return (
     <>
       <button
@@ -48,13 +128,16 @@ const Sidebar = (props: SidebarProps) => {
       )}
 
       <div
+        ref={sidebarRef}
         className={`
-          fixed bg-white border-r border-gray-200 max-[300px]:w-full w-60 pt-4 pb-6 
-          flex flex-col gap-6 h-full z-40 shadow-lg
+          fixed bg-white border-r border-gray-200 max-[300px]:w-full w-60 pt-4 
+          flex flex-col gap-2 h-full z-40 shadow-lg
           transition-transform duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
         `}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <div className="px-5 mt-2 lg:mt-0">
           <div className="flex gap-3">
@@ -67,15 +150,21 @@ const Sidebar = (props: SidebarProps) => {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2">
+        <nav
+          className={`flex-1 px-2 ${isHovering ? "overflow-y-auto" : "overflow-hidden"}`}
+        >
           <ul className="space-y-1 pt-1">
             {sidebarElements.map((element, index) => {
               const active = isActive(element.path);
+              const count = getCount(element.title);
               return (
                 <li key={index}>
                   <Link
                     to={element.path}
-                    onClick={() => setIsOpen(false)}
+                    onClick={() => {
+                      setIsOpen(false);
+                      handleItemClick(element.title);
+                    }}
                     className={`
                       group relative flex items-center gap-2 p-3 rounded-lg
                       transition-all duration-200 ease-in-out
@@ -111,8 +200,16 @@ const Sidebar = (props: SidebarProps) => {
                       {element.icon}
                     </span>
 
-                    <span className="text-sm flex-1 font-semibold">
+                    <span className="text-sm flex-1 font-semibold flex items-center gap-1">
                       {element.title}
+                      {element.newAdded && count > 0 && (
+                        <span className="relative inline-flex items-center justify-center">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                          <span className="relative inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+                            {count > 99 ? "99+" : count}
+                          </span>
+                        </span>
+                      )}
                     </span>
 
                     {active && (
@@ -143,7 +240,7 @@ const Sidebar = (props: SidebarProps) => {
           </ul>
         </nav>
 
-        <div className="px-6 pt-4 border-t border-gray-200">
+        <div className="px-6 py-4 border-t border-gray-200">
           <div className="text-xs text-gray-500 text-center">
             © 2024 Smart Hospital
           </div>

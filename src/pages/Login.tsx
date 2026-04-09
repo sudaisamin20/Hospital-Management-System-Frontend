@@ -8,6 +8,10 @@ import Navbar from "../components/Navbar";
 import PharmacistForm from "../components/auth/PharmacistForm";
 import LabAssistantForm from "../components/auth/LabAssistantForm";
 import SuperAdminForm from "../components/auth/SuperAdminForm";
+import { Lock } from "lucide-react";
+import { BsLightning } from "react-icons/bs";
+import { RiAdminLine } from "react-icons/ri";
+import { IoAnalytics } from "react-icons/io5";
 
 type Role =
   | "superadmin"
@@ -33,7 +37,7 @@ const Login = () => {
 
         <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 gap-8 items-center px-4 sm:px-6 lg:px-12 relative z-10">
           <div className="hidden lg:flex flex-col justify-center space-y-8 text-white max-w-2xl">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl py-8 p-12 mt-16 shadow-2xl">
+            <div className="bg-blue-600 rounded-3xl py-8 p-12 mt-16 shadow-2xl">
               <div className="space-y-3">
                 <div className="inline-block">
                   <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20">
@@ -46,9 +50,7 @@ const Login = () => {
 
                 <h1 className="text-2xl font-bold leading-tight">
                   Smart Hospital
-                  <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-white to-blue-100 mt-2">
-                    Management System
-                  </span>
+                  <span className="block">Management System</span>
                 </h1>
 
                 <p className="text-md text-blue-100 leading-relaxed">
@@ -58,14 +60,20 @@ const Login = () => {
 
                 <ul className="space-y-2 text-blue-50">
                   {[
-                    { icon: "🔒", text: "Secure Role-Based Access Control" },
                     {
-                      icon: "⚡",
+                      icon: <Lock className="h-5 w-5" />,
+                      text: "Secure Role-Based Access Control",
+                    },
+                    {
+                      icon: <BsLightning className="h-5 w-5" />,
                       text: "Faster Patient Handling & Processing",
                     },
-                    { icon: "👨‍💼", text: "Centralized Admin Control System" },
                     {
-                      icon: "📊",
+                      icon: <RiAdminLine className="h-5 w-5" />,
+                      text: "Centralized Admin Control System",
+                    },
+                    {
+                      icon: <IoAnalytics className="h-5 w-5" />,
                       text: "Real-Time Medical Records & Analytics",
                     },
                   ].map((item, idx) => (

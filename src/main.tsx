@@ -6,13 +6,16 @@ import { store } from "./app/store.ts";
 import { Provider } from "react-redux";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { NotificationProvider } from "./context/NotificationProvider.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <Provider store={store}>
-        <Toaster />
-        <App />
+        <NotificationProvider>
+          <Toaster />
+          <App />
+        </NotificationProvider>
       </Provider>
     </BrowserRouter>
   </StrictMode>,
