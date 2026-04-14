@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import {
   Bell,
-  Calendar,
-  Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -10,26 +8,23 @@ import {
   Eye,
   MailOpen,
   X,
-  FlaskConical,
-  FileText,
   Download,
 } from "lucide-react";
 import useModal from "../../hooks/useModal";
 import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
-import { useSelector } from "react-redux";
 import {
-  deleteNotificationApi,
   getAllNotificationsApi,
+  deleteNotificationApi,
   markAllasReadNotificationApi,
   markAsReadNotificationApi,
   type Notification,
 } from "../../api";
-import { useSocket, useSocketEvent } from "../../hooks";
+import { useAppSelector, useSocket, useSocketEvent } from "../../hooks";
 import { getNotificationColor, getNotificationIcon } from "../../components";
 
-const PatienNotifications = () => {
-  const patient = useSelector((state: any) => state.auth.user);
+const ReceptionistNotifications = () => {
+  const receptionist = useAppSelector((state: any) => state?.auth?.user);
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -37,6 +32,7 @@ const PatienNotifications = () => {
     useState<Notification | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
   const [filterRead, setFilterRead] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("");
   const baseurl = import.meta.env.VITE_BASE_URL;
 
   const fetchNotifications = async () => {
@@ -100,12 +96,11 @@ const PatienNotifications = () => {
     }
   };
 
-  useSocket(patient);
+  useSocket(receptionist);
   useSocketEvent("newNotification", (data: any) => {
-    console.log(data);
-    if (data.patNot) {
+    if (data.recNot) {
       setNotifications((prev) => {
-        const updated = [data.patNot, ...prev];
+        const updated = [data.recNot, ...prev];
         return updated.sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -116,13 +111,13 @@ const PatienNotifications = () => {
   });
 
   useEffect(() => {
-    if (patient?.id) {
+    if (receptionist?.id) {
       const fetchData = async () => {
         await fetchNotifications();
       };
       fetchData();
     }
-  }, [patient?.id]);
+  }, [receptionist?.id]);
 
   // Filter notifications
   const filteredNotifications = notifications.filter((notif) => {
@@ -132,16 +127,17 @@ const PatienNotifications = () => {
       filterRead === "all" ||
       (filterRead === "unread" && !notif.isRead) ||
       (filterRead === "read" && notif.isRead);
-    return matchesType && matchesRead;
+    const matchesDate = dateFilter === "" || notif.aptId.aptDate === dateFilter;
+    return matchesType && matchesRead && matchesDate;
   });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen w-full bg-gray-50 p-3">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
+        <div className="mb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-blue-100 p-3 rounded-full">
@@ -179,12 +175,12 @@ const PatienNotifications = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="text-sm p-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300"
             >
               <option value="all">All Types</option>
               <option value="reschedule_request">Reschedule Requests</option>
@@ -204,19 +200,30 @@ const PatienNotifications = () => {
             <select
               value={filterRead}
               onChange={(e) => setFilterRead(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="text-sm p-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300"
             >
               <option value="all">All Notifications</option>
               <option value="unread">Unread Only</option>
               <option value="read">Read Only</option>
             </select>
+
+            {/* Date Filter */}
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="text-sm p-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-300"
+            />
           </div>
 
-          {(filterType !== "all" || filterRead !== "all") && (
+          {(filterType !== "all" ||
+            filterRead !== "all" ||
+            dateFilter !== "") && (
             <button
               onClick={() => {
                 setFilterType("all");
                 setFilterRead("all");
+                setDateFilter("");
               }}
               className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium"
             >
@@ -241,8 +248,8 @@ const PatienNotifications = () => {
             </div>
           ) : (
             filteredNotifications.map((notification) => {
-              const type = notification?.notificationType;
-              const Icon = getNotificationIcon(type);
+              const type = notification.notificationType;
+              const Icon = getNotificationIcon(notification.notificationType);
               const apt = notification.aptId;
 
               return (
@@ -307,18 +314,10 @@ const PatienNotifications = () => {
                               </div>
                               <div>
                                 <span className="text-gray-600 font-medium">
-                                  Doctor:{" "}
+                                  Patient:{" "}
                                 </span>
                                 <span className="text-gray-900">
-                                  {apt.doctorId?.fullName}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600 font-medium">
-                                  Department:{" "}
-                                </span>
-                                <span className="text-gray-900">
-                                  {apt.departmentId?.name}
+                                  {apt.patientId?.fullName}
                                 </span>
                               </div>
                               <div>
@@ -356,16 +355,6 @@ const PatienNotifications = () => {
                                     }`}
                                   >
                                     {apt.status}
-                                  </span>
-                                </div>
-                              )}
-                              {apt.specialistId && (
-                                <div>
-                                  <span className="text-gray-600 font-medium">
-                                    Specialist:{" "}
-                                  </span>
-                                  <span className="text-gray-900">
-                                    {apt.specialistId.name}
                                   </span>
                                 </div>
                               )}
@@ -427,7 +416,7 @@ const PatienNotifications = () => {
                         )}
 
                         {/* Lab Order */}
-                        {notification.notificationType === "lab_test" && (
+                        {notification.notificationType === "lab" && (
                           <div className="bg-gray-50 rounded-lg p-4 mb-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                               <div>
@@ -456,9 +445,7 @@ const PatienNotifications = () => {
                               </div>
                               <div>
                                 <span className="text-gray-600 font-medium">
-                                  {notification.labOrder.completedAt
-                                    ? "Completed At:"
-                                    : "Started At: "}{" "}
+                                  Completed At:{" "}
                                 </span>
                                 <span className="text-gray-900">
                                   {notification.labOrder?.completedAt
@@ -474,20 +461,7 @@ const PatienNotifications = () => {
                                         minute: "2-digit",
                                         hour: "2-digit",
                                       })}`
-                                    : notification?.createdAt
-                                      ? `${new Date(
-                                          notification.createdAt,
-                                        ).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                          year: "numeric",
-                                        })}, ${new Date(
-                                          notification.createdAt,
-                                        ).toLocaleTimeString("en-US", {
-                                          minute: "2-digit",
-                                          hour: "2-digit",
-                                        })}`
-                                      : "N/A"}
+                                    : "N/A"}
                                 </span>
                               </div>
                             </div>
@@ -636,7 +610,9 @@ const PatienNotifications = () => {
             selectedNotification &&
             (() => {
               const type = selectedNotification?.notificationType;
-              const Icon = getNotificationIcon(type);
+              const Icon = getNotificationIcon(
+                selectedNotification.notificationType,
+              );
               const apt = selectedNotification.aptId;
 
               return (
@@ -677,7 +653,7 @@ const PatienNotifications = () => {
                   </div>
 
                   {/* Lab Test Details */}
-                  {selectedNotification.notificationType === "lab_test" && (
+                  {selectedNotification.notificationType.includes("lab") && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Lab Test Results
@@ -851,7 +827,9 @@ const PatienNotifications = () => {
                   )}
 
                   {/* Prescription Details */}
-                  {selectedNotification.notificationType === "prescription" && (
+                  {selectedNotification.notificationType.includes(
+                    "prescription",
+                  ) && (
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Prescription Details
@@ -1025,33 +1003,42 @@ const PatienNotifications = () => {
                           </div>
                           <div>
                             <span className="text-blue-700 font-medium">
-                              Doctor:
+                              Patient ID:
                             </span>
                             <p className="text-blue-900">
-                              {apt.doctorId?.fullName}
+                              {apt.patientId?.id_no}
                             </p>
                           </div>
                           <div>
                             <span className="text-blue-700 font-medium">
-                              Department:
+                              Patient:
                             </span>
                             <p className="text-blue-900">
-                              {apt.departmentId?.name}
+                              {apt.patientId?.fullName}
                             </p>
                           </div>
-                          {apt.specialistId && (
-                            <div>
-                              <span className="text-blue-700 font-medium">
-                                Specialist:
-                              </span>
-                              <p className="text-blue-900">
-                                {apt.specialistId.name}
-                              </p>
-                            </div>
-                          )}
                           <div>
                             <span className="text-blue-700 font-medium">
-                              Date & Time:
+                              Patient Contact:
+                            </span>
+                            <p className="text-blue-900 capitalize">
+                              {apt.patientId.phoneNo}
+                            </p>
+                            <p className="text-blue-900">
+                              {apt.patientId.email}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-blue-700 font-medium">
+                              Time:
+                            </span>
+                            <p className="text-blue-900">
+                              {apt.appointmentTime}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-blue-700 font-medium">
+                              Date:
                             </span>
                             <p className="text-blue-900">
                               {new Date(apt.aptDate).toLocaleDateString(
@@ -1061,8 +1048,7 @@ const PatienNotifications = () => {
                                   month: "long",
                                   day: "numeric",
                                 },
-                              )}{" "}
-                              at {apt.appointmentTime}
+                              )}
                             </p>
                           </div>
                           <div>
@@ -1091,14 +1077,6 @@ const PatienNotifications = () => {
                               }`}
                             >
                               {apt.status}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-blue-700 font-medium">
-                              Patient:
-                            </span>
-                            <p className="text-blue-900">
-                              {apt.patientId?.fullName}
                             </p>
                           </div>
                           {apt.reasonForVisit && (
@@ -1242,4 +1220,4 @@ const PatienNotifications = () => {
   );
 };
 
-export default PatienNotifications;
+export default ReceptionistNotifications;

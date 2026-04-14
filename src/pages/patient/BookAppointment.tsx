@@ -63,6 +63,14 @@ const BookAppointment = () => {
     >,
   ) => {
     const { name, value } = e.target;
+    if (name === "aptDate") {
+      const now = new Date();
+      const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      if (value === todayDate) {
+        return toast.error("You can't book appointment today!");
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 

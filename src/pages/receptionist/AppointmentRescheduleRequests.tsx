@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Calendar,
   Clock,
-  User,
   Phone,
   Mail,
   AlertCircle,
@@ -11,8 +10,6 @@ import {
   Eye,
   Check,
   X,
-  Filter,
-  Search,
   Ban,
 } from "lucide-react";
 import useModal from "../../hooks/useModal";
@@ -20,6 +17,11 @@ import Modal from "../../components/Modal";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
+import { useSocket, useSocketEvent } from "../../hooks";
+import { rejectRescheduleRequestAptApi } from "../../api";
+import { TableFilters } from "../../components/filter";
+import { DataTable } from "../../components";
+import type { TableColumn } from "../../components/table/DataTable";
 
 interface IAppointment {
   _id: string;
@@ -58,10 +60,11 @@ interface IAppointment {
   altShift3: string;
   altTime3: string;
   status: string;
-  rescheduleRequestedAt: Date;
+  rescheduleRequestedAt: string;
+  rescheduleStatus: string;
   suggestedSlots: [
     {
-      date: Date;
+      date: string;
       shift: string;
       time: string;
     },
@@ -71,39 +74,71 @@ interface IAppointment {
 }
 
 interface ISlot {
-  date: Date;
+  date: string;
   shift: string;
   time: string;
 }
 
+interface ISocketData {
+  appointment: IAppointment;
+}
+
+export interface ISelectorUser {
+  auth: {
+    user: {
+      id: string;
+      id_no: string;
+      fullName: string;
+      email: string;
+      role: string;
+      token: string;
+      departmentId?: string;
+    };
+  };
+}
+
+export interface IRoleUserData {
+  id: string;
+  id_no: string;
+  fullName: string;
+  email: string;
+  role: string;
+  token: string;
+  departmentId?: string;
+}
+
 const AppointmentRescheduleRequests = () => {
   const { isOpen, openModal, closeModal } = useModal();
-  const receptionist = useSelector((state: any) => state.auth.user);
+  const receptionist: IRoleUserData = useSelector(
+    (state: ISelectorUser) => state.auth.user,
+  );
   const [modalType, setModalType] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [appointments, setAppointments] = useState<IAppointment[]>([]);
-  const [selectedApt, setSelectedApt] = useState<IAppointment>(null);
+  const [selectedApt, setSelectedApt] = useState<IAppointment>();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedSlot, setSelectedSlot] = useState<ISlot>({});
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [selectedSlot, setSelectedSlot] = useState<ISlot>();
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(
     null,
   );
+  const [loading, setLoading] = useState<boolean>(false);
+  const [resInputData, setResInputData] = useState({
+    altDate1: "",
+    altTime1: "",
+    altShift1: "",
+  });
   //   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
   const baseurl = import.meta.env.VITE_BASE_URL;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Confirmed":
-        return "bg-green-100 text-green-800";
       case "Pending":
         return "bg-yellow-100 text-yellow-800";
-      case "Completed":
-        return "bg-blue-100 text-blue-800";
-      case "Cancelled":
+      case "Approved":
+        return "bg-green-100 text-green-800";
+      case "Rejected":
         return "bg-red-100 text-red-800";
-      case "Reschedule Requested":
-        return "bg-amber-100 text-amber-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -124,6 +159,7 @@ const AppointmentRescheduleRequests = () => {
 
   const fetchRescheduleRequests = async () => {
     try {
+      setLoading(true);
       const response = await axios.get(
         `${baseurl}/api/appointment/fetch/reschedule-requests`,
       );
@@ -134,8 +170,30 @@ const AppointmentRescheduleRequests = () => {
       if (error instanceof Error) {
         console.error("Error fetching requests:", error.message);
       }
+    } finally {
+      setLoading(false);
     }
   };
+
+  useSocket(receptionist);
+  useSocketEvent("resReqApt", (data: ISocketData) => {
+    if (data.appointment) {
+      setAppointments((prev) => {
+        const updated = [data.appointment, ...prev];
+        return updated.sort(
+          (a, b) =>
+            new Date(b.rescheduleRequestedAt).getTime() -
+            new Date(a.rescheduleRequestedAt).getTime(),
+        );
+      });
+      toast.success(
+        `New request for rescheduling appointment is arrived! Appointment ID is ${data.appointment.id_no}. See details for rescheduling.`,
+        {
+          duration: 4000,
+        },
+      );
+    }
+  });
 
   useEffect(() => {
     if (receptionist?.id) {
@@ -147,19 +205,19 @@ const AppointmentRescheduleRequests = () => {
   }, [receptionist?.id]);
 
   const handleApproveRequest = async (
-    aptId: string,
-    date: string,
-    shift: string,
-    time: string,
+    aptId: string | undefined,
+    date: string | undefined,
+    shift: string | undefined,
+    time: string | undefined,
   ) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/approve-reschedule`,
         {
-          aptId,
-          date,
-          shift,
-          time,
+          aptId: aptId,
+          date: date || resInputData.altDate1,
+          shift: shift || resInputData.altShift1,
+          time: time || resInputData.altTime1,
           rescheduleStatus: "Approved",
           status: "Rescheduled",
           recId: receptionist?.id,
@@ -179,16 +237,13 @@ const AppointmentRescheduleRequests = () => {
   };
 
   const handleRejectRequest = async (
-    requestId: string,
-    rejectionReason: string,
+    aptId: string | undefined,
+    status: string | undefined,
   ) => {
     try {
-      const response = await axios.put(
-        `${baseurl}/api/appointment/reject-reschedule`,
-        { requestId, rejectionReason },
-      );
+      const response = await rejectRescheduleRequestAptApi(aptId, status);
       if (response.data.success) {
-        toast.success("Reschedule request rejected!");
+        toast.success(response.data.message);
         closeModal();
         fetchRescheduleRequests();
       }
@@ -200,6 +255,19 @@ const AppointmentRescheduleRequests = () => {
     }
   };
 
+  const handleCloseModal = () => {
+    setSelectedSlotIndex(null);
+    closeModal();
+  };
+
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { name, value } = e.target;
+    setResInputData((prev) => ({ ...prev, [name]: value }));
+  };
   // Filter requests
   const filteredAppointments = appointments?.filter((apt) => {
     const matchesSearch =
@@ -211,7 +279,8 @@ const AppointmentRescheduleRequests = () => {
         .includes(searchTerm.toLowerCase()) ||
       apt?.id_no?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesStatus = statusFilter === "all" || apt.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "All" || apt.rescheduleStatus === statusFilter;
     const matchesDate = !dateFilter || apt.aptDate === dateFilter;
     // const matchesUrgency =
     //   urgencyFilter === "all" || req.urgency === urgencyFilter;
@@ -252,43 +321,176 @@ const AppointmentRescheduleRequests = () => {
       color: "red",
     },
   ];
+  console.log(appointments);
+  const flattenedData = filteredAppointments.map((apt) => ({
+    ...apt,
+    parentTest: apt,
+  }));
+
+  const columns: TableColumn[] = [
+    {
+      key: "doctor",
+      label: "Doctor",
+      render: (_, row) => (
+        <div className="flex items-center">
+          <div className="h-10 w-10 rounded-full bg-blue-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+            {row?.parentTest?.doctorId?.photo ? (
+              <img
+                src={`${baseurl}/images/uploads/${row?.parentTest?.doctorId?.photo}`}
+                alt={row?.parentTest?.doctorId?.fullName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-blue-600 font-semibold text-sm">
+                {row?.parentTest.doctorId?.fullName
+                  ?.split(" ")
+                  .map((n: string) => n[0])
+                  .join("")}
+              </span>
+            )}
+          </div>
+          <div className="ml-3">
+            <p className="text-sm font-medium text-gray-900">
+              Dr. {row?.parentTest?.doctorId?.fullName}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "requestedAt",
+      label: "Requested At",
+      render: (_, row) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <span className="text-sm text-gray-900">
+              {new Date(
+                row?.parentTest?.rescheduleRequestedAt,
+              ).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span className="text-sm text-gray-900">
+              {new Date(
+                row?.parentTest?.rescheduleRequestedAt,
+              ).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "rescheduleReason",
+      label: "Reschedule Reason",
+      render: (_, row) => (
+        <span className="text-sm text-gray-900 line-clamp-2">
+          {row?.parentTest.rescheduleReason}
+        </span>
+      ),
+    },
+    {
+      key: "rescheduleStatus",
+      label: "Reschedule Status",
+      render: (_, row) => (
+        <span
+          className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${getStatusColor(row?.parentTest?.rescheduleStatus)}`}
+        >
+          {row?.parentTest?.rescheduleStatus}
+        </span>
+      ),
+    },
+    {
+      key: "action",
+      label: "Action",
+      render: (_, row) => (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => {
+              openModal();
+              setModalType("viewRequest");
+              setSelectedApt(row?.parentTest);
+            }}
+            className="text-blue-600 cursor-pointer hover:text-blue-800 font-medium text-sm"
+            title="View Details"
+          >
+            <Eye className="h-5 w-5" />
+          </button>
+          {row?.parentTest.status === "Pending" && (
+            <div>
+              <button
+                onClick={() => {
+                  openModal();
+                  setModalType("approveRequest");
+                  setSelectedApt(row?.parentTest);
+                }}
+                className="text-green-600 cursor-pointer hover:text-green-800 font-medium text-sm"
+                title="Approve"
+              >
+                <Check className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => {
+                  openModal();
+                  setModalType("rejectRequest");
+                  setSelectedApt(row?.parentTest?.appointment);
+                }}
+                className="text-red-600 cursor-pointer hover:text-red-800 font-medium text-sm"
+                title="Reject"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 p-4">
-      <div className="max-w-[1400px] mx-auto">
+    <div className="min-h-screen bg-gray-50 w-full p-3">
+      <div className="max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="p-3 mb-3">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-xl font-bold text-gray-900">
               Reschedule Requests
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 text-sm mt-2">
               Manage appointment reschedule requests from doctors
             </p>
           </div>
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
           {stats.map((item, index) => {
             const Icon = item.icon;
             return (
               <div
                 key={index}
-                className="bg-white rounded-lg shadow-sm p-6 flex items-center justify-between"
+                className="bg-white rounded-lg shadow-sm p-3 flex items-center justify-between"
               >
                 <div>
                   <p className="text-gray-600 text-sm font-medium">
                     {item.label}
                   </p>
                   <p
-                    className={`text-2xl font-bold text-${item.color}-600 mt-1`}
+                    className={`text-lg font-bold text-${item.color}-600 mt-1`}
                   >
                     {item.count}
                   </p>
                 </div>
-                <div className={`bg-${item.color}-100 p-3 rounded-full`}>
-                  <Icon className={`h-6 w-6 text-${item.color}-600`} />
+                <div className={`bg-${item.color}-100 p-2 rounded-full`}>
+                  <Icon className={`h-5 w-5 text-${item.color}-600`} />
                 </div>
               </div>
             );
@@ -296,72 +498,38 @@ const AppointmentRescheduleRequests = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="h-5 w-5 text-gray-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by patient, doctor, ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-
-            {/* Date Filter */}
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-
-            {/* Urgency Filter */}
-            {/* <select
-              value={urgencyFilter}
-              onChange={(e) => setUrgencyFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Urgency</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select> */}
-          </div>
-
-          {/* Clear Filters */}
-          {(searchTerm || statusFilter !== "all") && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                // setUrgencyFilter("all");
-              }}
-              className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Clear all filters
-            </button>
-          )}
-        </div>
+        <TableFilters
+          searchPlaceholder="Search by appointment ID or patient ID, name..."
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={[
+            {
+              id: "status",
+              label: "Status",
+              type: "select",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { label: "All", value: "All" },
+                { label: "Pending", value: "Pending" },
+                { label: "Approved", value: "Approved" },
+                { label: "Rejected", value: "Rejected" },
+              ],
+            },
+            {
+              id: "date",
+              label: "Date",
+              type: "date",
+              value: dateFilter,
+              onChange: setDateFilter,
+            },
+          ]}
+          onClearAll={() => {
+            setSearchTerm("");
+            setStatusFilter("All");
+            setDateFilter("");
+          }}
+        />
 
         {/* Results Count */}
         <div className="mb-4">
@@ -378,210 +546,18 @@ const AppointmentRescheduleRequests = () => {
           </p>
         </div>
 
-        {/* Requests Table */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border border-gray-200 shadow-2xl">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {/* <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Request ID
-                  </th> */}
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Doctor
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Patient
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Current Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Reason
-                  </th>
-                  {/* <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Urgency
-                  </th> */}
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredAppointments?.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <Calendar className="h-16 w-16 text-gray-300 mb-4" />
-                        <p className="text-gray-500 text-lg font-medium">
-                          No reschedule requests found
-                        </p>
-                        <p className="text-gray-400 mt-1">
-                          {searchTerm || statusFilter !== "all"
-                            ? "Try adjusting your filters"
-                            : "There are no reschedule requests at the moment"}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAppointments.map((appointment) => (
-                    <tr
-                      key={appointment._id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      {/* Request ID */}
-                      {/* <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-mono text-gray-900">
-                          {request?.id_no}
-                        </span>
-                      </td> */}
-
-                      {/* Doctor */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 overflow-hidden flex items-center justify-center flex-shrink-0">
-                            {appointment?.doctorId?.photo ? (
-                              <img
-                                src={`${baseurl}/images/uploads/${appointment.doctorId.photo}`}
-                                alt={appointment.doctorId.fullName}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-blue-600 font-semibold text-sm">
-                                {appointment.doctorId?.fullName
-                                  ?.split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </span>
-                            )}
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">
-                              Dr. {appointment.doctorId?.fullName}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Patient */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                            <User className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">
-                              {appointment?.patientId?.fullName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {appointment?.patientId?.phoneNo}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Current Date */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-900">
-                              {new Date(
-                                appointment?.aptDate,
-                              ).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-900">
-                              {appointment?.appointmentTime}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Reason */}
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-900 line-clamp-2">
-                          {appointment.reasonForVisit}
-                        </span>
-                      </td>
-
-                      {/* Urgency */}
-                      {/* <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${getUrgencyColor(appointment.urgency)}`}
-                        >
-                          {appointment.urgency}
-                        </span>
-                      </td> */}
-
-                      {/* Status */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${getStatusColor(appointment.status)}`}
-                        >
-                          {appointment.status}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => {
-                              openModal();
-                              setModalType("viewRequest");
-                              setSelectedApt(appointment);
-                            }}
-                            className="text-blue-600 cursor-pointer hover:text-blue-800 font-medium text-sm"
-                            title="View Details"
-                          >
-                            <Eye className="h-5 w-5" />
-                          </button>
-                          {appointment.status === "Pending" && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  openModal();
-                                  setModalType("approveRequest");
-                                  setSelectedApt(appointment);
-                                }}
-                                className="text-green-600 cursor-pointer hover:text-green-800 font-medium text-sm"
-                                title="Approve"
-                              >
-                                <Check className="h-5 w-5" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  openModal();
-                                  setModalType("rejectRequest");
-                                  setSelectedApt(appointment);
-                                }}
-                                className="text-red-600 cursor-pointer hover:text-red-800 font-medium text-sm"
-                                title="Reject"
-                              >
-                                <X className="h-5 w-5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          columns={columns}
+          data={flattenedData}
+          loading={loading}
+          emptyStateIcon={Calendar}
+          emptyStateTitle="No request for rescheduling appointment founded!"
+          emptyStateDescription={
+            searchTerm || statusFilter !== "All" || dateFilter
+              ? "Try adjusting your filters"
+              : "No request today"
+          }
+        />
 
         {/* Modal */}
         <Modal
@@ -589,7 +565,7 @@ const AppointmentRescheduleRequests = () => {
           title={
             modalType === "viewRequest" ? "Reschedule Request Details" : ""
           }
-          onClose={closeModal}
+          onClose={handleCloseModal}
           width="max-w-2/3"
           height="max-h-[450px]"
           onConfirm={
@@ -597,9 +573,9 @@ const AppointmentRescheduleRequests = () => {
               ? () =>
                   handleApproveRequest(
                     selectedApt?._id,
-                    selectedSlot.date,
-                    selectedSlot.shift,
-                    selectedSlot.time,
+                    selectedSlot?.date,
+                    selectedSlot?.shift,
+                    selectedSlot?.time,
                   )
               : undefined
           }
@@ -627,8 +603,8 @@ const AppointmentRescheduleRequests = () => {
           cancelIcon={<X className="w-5 h-5 mr-2" />}
           onBtn1={
             modalType === "viewRequest"
-              ? () => handleRejectRequest(selectedApt?._id, "")
-              : undefined
+              ? () => handleRejectRequest(selectedApt?._id, "Rejected")
+              : () => ""
           }
           btn1Icon={
             modalType === "viewRequest" ? <Ban className="w-5 h-5 mr-2" /> : ""
@@ -641,10 +617,10 @@ const AppointmentRescheduleRequests = () => {
           }
         >
           {modalType === "viewRequest" && selectedApt && (
-            <div className="space-y-6">
+            <div className="space-y-3">
               {/* Request Info */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                   <div>
                     <span className="text-gray-600 font-medium">
                       Appointment ID:{" "}
@@ -693,12 +669,12 @@ const AppointmentRescheduleRequests = () => {
               </div>
 
               {/* Current Appointment Details */}
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <h4 className="text-sm font-semibold text-red-900 mb-3 flex items-center gap-2">
                   <XCircle className="h-4 w-4" />
                   Current Appointment (To Be Rescheduled)
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-red-700 mb-1">
                       Patient
@@ -753,9 +729,9 @@ const AppointmentRescheduleRequests = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Reason for Reschedule
                 </label>
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <p className="text-sm font-medium text-gray-900 mb-2">
-                    {selectedApt.reason}
+                    {selectedApt.rescheduleReason}
                   </p>
                   <p className="text-sm text-gray-700 leading-relaxed">
                     {selectedApt.addDetails}
@@ -764,67 +740,135 @@ const AppointmentRescheduleRequests = () => {
               </div>
 
               {/* Alternative Dates */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Suggested Alternative Dates{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <p className="text-sm text-gray-600 mb-3">
-                  Select one of the suggested dates to reschedule the
-                  appointment provided by the doctor
-                </p>
-                <div className="space-y-3">
-                  {selectedApt.suggestedSlots?.map((slot, index) => (
-                    <label
-                      key={index}
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedSlotIndex === index
-                          ? "border-green-500 bg-green-50"
-                          : "border-gray-300 hover:border-green-400"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="selectedSlot"
-                        value={index}
-                        checked={selectedSlotIndex === index}
-                        className="mr-4 h-5 w-5 text-green-600 focus:ring-green-500 cursor-pointer"
-                        onChange={() => {
-                          setSelectedSlotIndex(index);
-                          setSelectedSlot(slot);
-                        }}
-                        required
-                      />
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-600 font-medium mb-1">
-                          Option {index + 1}
-                        </p>
-                        <p className="text-sm text-gray-900 font-semibold">
-                          {new Date(slot.date).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}{" "}
-                          at {slot.time}
-                        </p>
-                        <p className="text-xs text-gray-600 capitalize mt-1">
-                          {slot.shift} shift
-                        </p>
-                      </div>
-                      <CheckCircle
-                        className={`h-5 w-5 text-green-600 transition-opacity ${
+              {selectedApt.suggestedSlots.length > 0 ? (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Suggested Alternative Dates{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Select one of the suggested dates to reschedule the
+                    appointment provided by the doctor
+                  </p>
+                  <div className="space-y-3">
+                    {selectedApt.suggestedSlots?.map((slot, index) => (
+                      <label
+                        key={index}
+                        className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
                           selectedSlotIndex === index
-                            ? "opacity-100"
-                            : "opacity-0"
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-300 hover:border-green-400"
                         }`}
-                      />
-                    </label>
-                  ))}
+                      >
+                        <input
+                          type="radio"
+                          name="selectedSlot"
+                          value={index}
+                          checked={selectedSlotIndex === index}
+                          className="mr-4 h-5 w-5 text-green-600 focus:ring-green-500 cursor-pointer"
+                          onChange={() => {
+                            setSelectedSlotIndex(index);
+                            setSelectedSlot(slot);
+                          }}
+                          required
+                        />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-600 font-medium mb-1">
+                            Option {index + 1}
+                          </p>
+                          <p className="text-sm text-gray-900 font-semibold">
+                            {new Date(slot.date).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}{" "}
+                            at {slot.time}
+                          </p>
+                          <p className="text-xs text-gray-600 capitalize mt-1">
+                            {slot.shift} shift
+                          </p>
+                        </div>
+                        <CheckCircle
+                          className={`h-5 w-5 text-green-600 transition-opacity ${
+                            selectedSlotIndex === index
+                              ? "opacity-100"
+                              : "opacity-0"
+                          }`}
+                        />
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      name="altDate1"
+                      onChange={handleInputChange}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Shift <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="altShift1"
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select</option>
+                      <option value="morning">Morning</option>
+                      <option value="evening">Evening</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Time <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="altTime1"
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select</option>
+                      {resInputData.altShift1 &&
+                      resInputData.altShift1 === "morning" ? (
+                        <>
+                          <option value="09:00 AM">09:00 AM</option>
+                          <option value="09:30 AM">09:30 AM</option>
+                          <option value="10:00 AM">10:00 AM</option>
+                          <option value="10:30 AM">10:30 AM</option>
+                          <option value="11:00 AM">11:00 AM</option>
+                          <option value="11:30 AM">11:30 AM</option>
+                          <option value="12:00 PM">12:00 PM</option>
+                        </>
+                      ) : resInputData.altShift1 &&
+                        resInputData.altShift1 === "evening" ? (
+                        <>
+                          <option value="04:00 PM">04:00 PM</option>
+                          <option value="04:30 PM">04:30 PM</option>
+                          <option value="05:00 PM">05:00 PM</option>
+                          <option value="05:30 PM">05:30 PM</option>
+                          <option value="06:00 PM">06:00 PM</option>
+                          <option value="06:30 PM">06:30 PM</option>
+                          <option value="07:00 PM">07:00 PM</option>
+                        </>
+                      ) : (
+                        ""
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Contact Information */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <h4 className="text-sm font-semibold text-blue-900 mb-3">
                   Patient Contact Information
                 </h4>
@@ -855,7 +899,7 @@ const AppointmentRescheduleRequests = () => {
 
               <div className="space-y-3">
                 {selectedApt.altDate1 && (
-                  <label className="flex items-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-green-500 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
+                  <label className="flex items-center p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-green-500 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
                     <input
                       type="radio"
                       name="selectedDate"
@@ -881,7 +925,7 @@ const AppointmentRescheduleRequests = () => {
                   </label>
                 )}
                 {selectedApt.altDate2 && (
-                  <label className="flex items-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-green-500 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
+                  <label className="flex items-center p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-green-500 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
                     <input
                       type="radio"
                       name="selectedDate"
@@ -907,7 +951,7 @@ const AppointmentRescheduleRequests = () => {
                   </label>
                 )}
                 {selectedApt.altDate3 && (
-                  <label className="flex items-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-green-500 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
+                  <label className="flex items-center p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-green-500 has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
                     <input
                       type="radio"
                       name="selectedDate"
@@ -934,7 +978,7 @@ const AppointmentRescheduleRequests = () => {
                 )}
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-900">
                   <strong>Note:</strong> After approval, please contact the
                   patient at <strong>{selectedApt?.patientId?.phoneNo}</strong>{" "}

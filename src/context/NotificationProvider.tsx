@@ -7,6 +7,7 @@ export const NotificationProvider = ({ children }: any) => {
     labOrders: 0,
     prescriptions: 0,
     notifications: 0,
+    resReqApts: 0,
   });
 
   return (

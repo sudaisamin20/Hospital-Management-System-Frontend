@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
     CHANGE_PASSWORD: "/patient/change-password",
     APPOINTMENTS: "/appointment/fetch/patient-all-appointments/:patientId",
     MEDICAL_RECORDS: "/patient/medical-records/:patientId",
+    DASHBOARD_DATA: "/patient/fetch/dashboard-data",
   },
   DOCTOR: {
     PROFILE: "/doctor/profile-details",
@@ -49,13 +50,17 @@ export const API_ENDPOINTS = {
     PROFILE_UPDATE: "/doctor/update-profile",
     CHANGE_PASSWORD: "/doctor/change-password",
   },
+  RECEPTIONIST: {
+    MARK_AS_SEEN_RES_REQ_APTS:
+      "/receptionist/appointment/mark-as-seen/res-req-apts",
+  },
   APPOINTMENT: {
     CREATE: "/appointment/add-appointment",
     LIST: "/appointment/fetch/all-appointments/:recId",
     CANCEL: "/appointment/cancel-appointment",
     UPDATE_STATUS: "/appointment/confirm-apt-status",
-    UNREAD: "/appointment/fetch/unread-count",
     MARK_AS_SEEN: "/appointment/mark-as-seen",
+    REJECT_RESCHEDULE_REQUEST: "/appointment/reject-reschedule-request",
   },
   PRESCRIPTION: {
     CREATE: "/prescription/create-prescription",
@@ -73,5 +78,6 @@ export const API_ENDPOINTS = {
     MARK_AS_READ: "/notification/mark-as-read/:notificationId",
     DELETE: "/notification/delete/:notificationId",
     MARK_AS_SEEN: "/notification/mark-as-seen",
+    UNREAD: "/notification/fetch/unread-count",
   },
 } as const;

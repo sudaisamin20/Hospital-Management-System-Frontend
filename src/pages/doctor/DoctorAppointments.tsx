@@ -28,47 +28,17 @@ import DataTable from "../../components/table/DataTable";
 import TableFilters from "../../components/filter/TableFilters";
 import { useSocket } from "../../hooks/useSocket";
 import { useSocketEvent } from "../../hooks/useSocketEvent";
-
-interface Appointment {
-  _id: string;
-  patientId: {
-    _id: string;
-    id_no: string;
-    fullName: string;
-    phoneNo: string;
-    email: string;
-  };
-  doctorId: {
-    _id: string;
-    id_no: string;
-    fullName: string;
-    photo: string;
-  };
-  departmentId: {
-    _id: string;
-    name: string;
-  };
-  specialistId: {
-    _id: string;
-    name: string;
-  };
-  shift: string;
-  aptDate: string;
-  appointmentTime: string;
-  status: string;
-  reasonForVisit: string;
-  id_no: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import StatsCard from "../../components/StatsCard";
+import type { IStateData, User as IUser } from "../../features";
+import type { AppointmentData } from "../../api";
 
 const DoctorAppointments = () => {
-  const doctor = useSelector((state: any) => state.auth.user);
+  const doctor: IUser = useSelector((state: IStateData) => state.auth.user);
   const location = useLocation();
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [appointments, setAppointments] = useState<AppointmentData[]>([]);
+  const [selectedApt, setSelectedApt] = useState<AppointmentData>();
   const [searchTerm, setSearchTerm] = useState(location.state?.aptId || "");
   const [statusFilter, setStatusFilter] = useState<string>(
     location.state?.status || "All",
@@ -152,6 +122,8 @@ const DoctorAppointments = () => {
         return "bg-blue-100 text-blue-800";
       case "Cancelled":
         return "bg-red-100 text-red-800";
+      case "Reshceduled":
+        return "bg-amber-100 text-amber-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -186,7 +158,6 @@ const DoctorAppointments = () => {
       setLoading(false);
     }
   };
-
   useSocket(doctor);
   useSocketEvent("appointmentConfirmed", (data: any) => {
     setAppointments((prev) => {
@@ -235,7 +206,10 @@ const DoctorAppointments = () => {
     }));
   };
 
-  const handleDocAptRes = async (id: string, doctorId: string) => {
+  const handleDocAptRes = async (
+    id: string | undefined,
+    doctorId: string | undefined,
+  ) => {
     try {
       const suggestedSlots = [
         {
@@ -319,10 +293,12 @@ const DoctorAppointments = () => {
   const filteredAppointments = appointments.filter((apt) => {
     const matchesSearch =
       apt.id_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apt.patientId?.fullName
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      apt.patientId?.id_no?.toLowerCase().includes(searchTerm.toLowerCase());
+      (typeof apt.patientId !== "string" &&
+        apt.patientId?.fullName
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase())) ||
+      (typeof apt.patientId !== "string" &&
+        apt.patientId?.id_no?.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus = statusFilter === "All" || apt.status === statusFilter;
     const matchesDate = !dateFilter || apt.aptDate === dateFilter;
@@ -415,9 +391,9 @@ const DoctorAppointments = () => {
     });
   };
   const handleSaveConsultation = async (
-    aptId: string,
-    patientId: string,
-    doctorId: string,
+    aptId: string | undefined,
+    patientId: string | undefined,
+    doctorId: string | undefined,
   ) => {
     try {
       const filteredLabTest = consultationData.labTests.filter((test) =>
@@ -453,7 +429,7 @@ const DoctorAppointments = () => {
     }
   };
 
-  const handleStartedAptTime = async (aptId: string) => {
+  const handleStartedAptTime = async (aptId: string | undefined) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/set-start-time`,
@@ -484,31 +460,31 @@ const DoctorAppointments = () => {
   const stats = [
     {
       label: "Total",
-      count: appointments.length,
+      value: appointments.length,
       icon: Calendar,
       color: "blue",
     },
     {
       label: "Pending",
-      count: appointments.filter((apt) => apt.status === "Pending").length,
+      value: appointments.filter((apt) => apt.status === "Pending").length,
       icon: Clock,
       color: "yellow",
     },
     {
       label: "Confirmed",
-      count: appointments.filter((apt) => apt.status === "Confirmed").length,
+      value: appointments.filter((apt) => apt.status === "Confirmed").length,
       icon: CheckCircle,
       color: "green",
     },
     {
       label: "Completed",
-      count: appointments.filter((apt) => apt.status === "Completed").length,
+      value: appointments.filter((apt) => apt.status === "Completed").length,
       icon: Check,
       color: "blue",
     },
     {
       label: "Cancelled",
-      count: appointments.filter((apt) => apt.status === "Cancelled").length,
+      value: appointments.filter((apt) => apt.status === "Cancelled").length,
       icon: XCircle,
       color: "purple",
     },
@@ -642,26 +618,15 @@ const DoctorAppointments = () => {
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
           {stats.map((item, index) => {
-            const Icon = item.icon;
             return (
-              <div
+              <StatsCard
                 key={index}
-                className={`bg-${item.color}-100 rounded-lg shadow-sm px-4 py-3 flex items-center justify-between`}
-              >
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">
-                    {item.label}
-                  </p>
-                  <p
-                    className={`text-lg font-bold text-${item.color}-700 mt-1`}
-                  >
-                    {item.count}
-                  </p>
-                </div>
-                <div className={`bg-${item.color}-300 p-2 rounded-full`}>
-                  <Icon className={`h-5 w-5 text-${item.color}-700`} />
-                </div>
-              </div>
+                index={index}
+                label={item.label}
+                value={item.value}
+                color={item.color}
+                icon={item.icon}
+              />
             );
           })}
         </div>
@@ -766,26 +731,37 @@ const DoctorAppointments = () => {
                 }
               : modalType === "reqRes"
                 ? () =>
-                    handleDocAptRes(selectedApt?._id, selectedApt?.doctorId._id)
+                    handleDocAptRes(
+                      selectedApt?._id,
+                      typeof selectedApt?.doctorId !== "string"
+                        ? selectedApt?.doctorId._id
+                        : "",
+                    )
                 : modalType === "startCons"
                   ? () =>
                       handleSaveConsultation(
                         selectedApt?._id,
-                        selectedApt?.patientId?._id,
-                        selectedApt?.doctorId?._id,
+                        typeof selectedApt?.patientId !== "string"
+                          ? selectedApt?.patientId?._id
+                          : "",
+                        typeof selectedApt?.doctorId !== "string"
+                          ? selectedApt?.doctorId?._id
+                          : "",
                       )
-                  : ""
+                  : () => ""
           }
           onCancel={
-            modalType === "viewDetail"
-              ? () => setModalType("reqRes")
-              : modalType === "reqRes"
-                ? () => setModalType("viewDetail")
-                : modalType === "startCons"
-                  ? () => {
-                      setModalType("viewDetail");
-                    }
-                  : closeModal
+            selectedApt?.status === "Completed"
+              ? () => ""
+              : modalType === "viewDetail"
+                ? () => setModalType("reqRes")
+                : modalType === "reqRes"
+                  ? () => setModalType("viewDetail")
+                  : modalType === "startCons"
+                    ? () => {
+                        setModalType("viewDetail");
+                      }
+                    : closeModal
           }
           confirmText={
             modalType === "viewDetail"
@@ -812,6 +788,10 @@ const DoctorAppointments = () => {
               ""
             )
           }
+          onBtn1={() => ""}
+          btn1Color=""
+          btn1Icon=""
+          btn1Text=""
         >
           {modalType === "viewDetail" && selectedApt && (
             <div className="space-y-2">
@@ -827,15 +807,21 @@ const DoctorAppointments = () => {
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600 font-medium">Created: </span>
+                    <span className="text-gray-600 font-medium">
+                      Confirmed At:{" "}
+                    </span>
                     <span className="text-gray-900">
-                      {new Date(selectedApt.createdAt).toLocaleString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {selectedApt.confirmedAt &&
+                        new Date(selectedApt?.confirmedAt).toLocaleString(
+                          "en-US",
+                          {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          },
+                        )}
                     </span>
                   </div>
                 </div>
@@ -939,7 +925,9 @@ const DoctorAppointments = () => {
                       Patient Name
                     </label>
                     <p className="text-base text-gray-900 font-medium">
-                      {selectedApt.patientId?.fullName || "N/A"}
+                      {(typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.fullName) ||
+                        "N/A"}
                     </p>
                   </div>
 
@@ -948,7 +936,9 @@ const DoctorAppointments = () => {
                       Contact Number
                     </label>
                     <p className="text-base text-gray-900">
-                      {selectedApt.patientId?.phoneNo || "N/A"}
+                      {(typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.phoneNo) ||
+                        "N/A"}
                     </p>
                   </div>
 
@@ -957,20 +947,24 @@ const DoctorAppointments = () => {
                       Patient ID
                     </label>
                     <p className="text-base text-gray-900 font-mono">
-                      {selectedApt.patientId?.id_no || "N/A"}
+                      {(typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.id_no) ||
+                        "N/A"}
                     </p>
                   </div>
 
-                  {selectedApt.patientId?.email && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        Email
-                      </label>
-                      <p className="text-base text-gray-900">
-                        {selectedApt.patientId.email}
-                      </p>
-                    </div>
-                  )}
+                  {typeof selectedApt.patientId !== "string" &&
+                    selectedApt.patientId?.email && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Email
+                        </label>
+                        <p className="text-base text-gray-900">
+                          {typeof selectedApt.patientId !== "string" &&
+                            selectedApt.patientId.email}
+                        </p>
+                      </div>
+                    )}
                 </div>
 
                 {/* Department Information */}
@@ -984,7 +978,9 @@ const DoctorAppointments = () => {
                       Doctor Name
                     </label>
                     <p className="text-base font-medium text-gray-900">
-                      {selectedApt.doctorId?.fullName || "N/A"}
+                      {(typeof selectedApt.doctorId !== "string" &&
+                        selectedApt.doctorId?.fullName) ||
+                        "N/A"}
                     </p>
                   </div>
                   <div>
@@ -992,7 +988,9 @@ const DoctorAppointments = () => {
                       Doctor ID
                     </label>
                     <p className="text-base text-gray-900">
-                      {selectedApt.doctorId?.id_no || "N/A"}
+                      {(typeof selectedApt.doctorId !== "string" &&
+                        selectedApt.doctorId?.id_no) ||
+                        "N/A"}
                     </p>
                   </div>
                   <div>
@@ -1000,17 +998,19 @@ const DoctorAppointments = () => {
                       Department
                     </label>
                     <p className="text-base text-gray-900">
-                      {selectedApt.departmentId?.name || "N/A"}
+                      {(typeof selectedApt.doctorId !== "string" &&
+                        selectedApt.departmentId?.name) ||
+                        "N/A"}
                     </p>
                   </div>
 
-                  {selectedApt.specialistId && (
+                  {selectedApt?.specialistId && (
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
                         Specialist
                       </label>
                       <p className="text-base text-gray-900">
-                        {selectedApt.specialistId.name}
+                        {selectedApt.specialistId?.name}
                       </p>
                     </div>
                   )}
@@ -1024,7 +1024,7 @@ const DoctorAppointments = () => {
                 </label>
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-gray-900 leading-relaxed">
-                    {selectedApt.reasonForVisit || "No reason provided"}
+                    {selectedApt?.reasonForVisit || "No reason provided"}
                   </p>
                 </div>
               </div>
@@ -1044,7 +1044,8 @@ const DoctorAppointments = () => {
                       Patient:
                     </span>
                     <p className="text-sm font-semibold text-blue-900">
-                      {selectedApt.patientId?.fullName}
+                      {typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.fullName}
                     </p>
                   </div>
                   <div>
@@ -1449,7 +1450,8 @@ const DoctorAppointments = () => {
                       Patient ID:{" "}
                     </span>
                     <span className="text-blue-900 font-semibold">
-                      {selectedApt.patientId?.id_no}
+                      {typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.id_no}
                     </span>
                   </div>
                   <div>
@@ -1457,7 +1459,8 @@ const DoctorAppointments = () => {
                       Patient Name:{" "}
                     </span>
                     <span className="text-blue-900 font-semibold">
-                      {selectedApt.patientId?.fullName}
+                      {typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.fullName}
                     </span>
                   </div>
                   <div>
@@ -1465,14 +1468,21 @@ const DoctorAppointments = () => {
                       Age/Gender:{" "}
                     </span>
                     <span className="text-blue-900 capitalize">
-                      {calcAge(selectedApt.patientId?.dob)} y/o •{" "}
-                      {selectedApt.patientId?.gender}
+                      {calcAge(
+                        typeof selectedApt?.patientId !== "string"
+                          ? selectedApt.patientId?.dob
+                          : "",
+                      )}{" "}
+                      y/o •{" "}
+                      {typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.gender}
                     </span>
                   </div>
                   <div>
                     <span className="text-blue-700 font-medium">Contact: </span>
                     <span className="text-blue-900">
-                      {selectedApt.patientId?.phoneNo}
+                      {typeof selectedApt.patientId !== "string" &&
+                        selectedApt.patientId?.phoneNo}
                     </span>
                   </div>
                 </div>
@@ -1844,8 +1854,8 @@ const DoctorAppointments = () => {
                                 value={
                                   test.testName
                                     ? {
-                                        label: test.testName,
-                                        value: test.testId,
+                                        label: test?.testName,
+                                        value: test?.testId,
                                       }
                                     : null
                                 }

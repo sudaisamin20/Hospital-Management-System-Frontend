@@ -31,6 +31,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import useModal from "../../hooks/useModal";
 import Modal from "../../components/Modal";
 import axiosInstance from "../../api/axiosInstance";
+import StatsCard from "../../components/StatsCard";
 
 interface IPatientRecordAPI {
   patients: [
@@ -438,26 +439,15 @@ const Patients = () => {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           {stats.map((stat, index) => {
-            const Icon = stat.icon;
             return (
-              <div
+              <StatsCard
                 key={index}
-                className="bg-white rounded-lg shadow-sm px-4 py-3 flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">
-                    {stat.label}
-                  </p>
-                  <p
-                    className={`text-lg font-bold text-${stat.color}-600 mt-1`}
-                  >
-                    {stat.value}
-                  </p>
-                </div>
-                <div className={`bg-${stat.color}-100 p-2 rounded-full`}>
-                  <Icon className={`h-5 w-5 text-${stat.color}-600`} />
-                </div>
-              </div>
+                index={index}
+                label={stat.label}
+                value={stat.value}
+                color={stat.color}
+                icon={stat.icon}
+              />
             );
           })}
         </div>

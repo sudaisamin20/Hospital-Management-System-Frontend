@@ -11,8 +11,24 @@ export interface User {
   id_no: string;
   fullName: string;
   email: string;
-  role: Role;
+  role: Role | string | null;
   token: string | null;
+}
+
+export interface IStateData {
+  auth: {
+    isAuthenticated: boolean;
+    role: string;
+    user: {
+      id: string;
+      id_no: string;
+      fullName: string;
+      email: string;
+      role: string;
+      token: string;
+      departmentId?: string;
+    };
+  };
 }
 
 export interface PatientUser extends User {

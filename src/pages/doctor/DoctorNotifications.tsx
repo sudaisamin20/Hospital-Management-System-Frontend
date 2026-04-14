@@ -13,6 +13,7 @@ import {
   FlaskConical,
   FileText,
   Download,
+  CalendarSync,
 } from "lucide-react";
 import useModal from "../../hooks/useModal";
 import Modal from "../../components/Modal";
@@ -24,7 +25,8 @@ import {
   markAsReadNotificationApi,
   type Notification,
 } from "../../api";
-import { useAppSelector } from "../../hooks";
+import { useAppSelector, useSocket, useSocketEvent } from "../../hooks";
+import { getNotificationColor, getNotificationIcon } from "../../components";
 
 const DoctorNotifications = () => {
   const doctor = useAppSelector((state: any) => state?.auth?.user);
@@ -38,72 +40,27 @@ const DoctorNotifications = () => {
   const [dateFilter, setDateFilter] = useState<string>("");
   const baseurl = import.meta.env.VITE_BASE_URL;
 
-  // Derive notification type from aptId fields or notificationType
-  const getNotificationType = (notification: Notification): string => {
-    // Check for explicit notification type first
-    if (notification.notificationType === "lab") return "lab_test";
-    if (notification.notificationType === "prescription")
-      return "prescription_dispensed";
-
-    const apt = notification.aptId;
-    if (!apt) return "general";
-
-    const title = notification.title.toLowerCase();
-    if (title.includes("rescheduled") || apt.rescheduleStatus === "Approved")
-      return "reschedule_approved";
-    if (apt.rescheduleStatus === "Rejected") return "reschedule_rejected";
-    if (apt.rescheduleStatus === "Pending") return "reschedule_request";
-    if (apt.status === "Confirmed") return "appointment_confirmed";
-    if (apt.status === "Completed") return "appointment_completed";
-    if (apt.status === "Cancelled") return "appointment_cancelled";
-    if (title.includes("reminder")) return "appointment_reminder";
-    return "general";
-  };
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "lab_test":
-        return FlaskConical;
-      case "prescription_dispensed":
-        return FileText;
-      case "reschedule_request":
-      case "reschedule_approved":
-      case "reschedule_rejected":
-        return Calendar;
-      case "appointment_confirmed":
-        return CheckCircle;
-      case "appointment_completed":
-        return CheckCircle;
-      case "appointment_cancelled":
-        return XCircle;
-      case "appointment_reminder":
-        return Clock;
-      default:
-        return Bell;
-    }
-  };
-
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case "lab_test":
-        return "bg-purple-100 text-purple-800 border-purple-200";
-      case "prescription_dispensed":
-        return "bg-orange-100 text-orange-800 border-orange-200";
-      case "reschedule_approved":
-      case "appointment_confirmed":
-        return "bg-blue-100 text-blue-800 border-blue-200";
-      case "appointment_completed":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "reschedule_rejected":
-      case "appointment_cancelled":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "reschedule_request":
-      case "appointment_reminder":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      default:
-        return "bg-blue-100 text-blue-800 border-blue-200";
-    }
-  };
+  // const getNotificationColor = (type: string) => {
+  //   switch (type) {
+  //     case "lab_test":
+  //       return "bg-purple-100 text-purple-800 border-purple-200";
+  //     case "prescription_dispensed":
+  //       return "bg-orange-100 text-orange-800 border-orange-200";
+  //     case "appointment_confirmed":
+  //       return "bg-blue-100 text-blue-800 border-blue-200";
+  //     case "reschedule_approved":
+  //     case "appointment_completed":
+  //       return "bg-green-100 text-green-800 border-green-200";
+  //     case "reschedule_rejected":
+  //     case "appointment_cancelled":
+  //       return "bg-red-100 text-red-800 border-red-200";
+  //     case "reschedule_request":
+  //     case "appointment_reminder":
+  //       return "bg-yellow-100 text-yellow-800 border-yellow-200";
+  //     default:
+  //       return "bg-blue-100 text-blue-800 border-blue-200";
+  //   }
+  // };
 
   const fetchNotifications = async () => {
     try {
@@ -166,6 +123,20 @@ const DoctorNotifications = () => {
     }
   };
 
+  useSocket(doctor);
+  useSocketEvent("newNotification", (data: any) => {
+    if (data.docNot) {
+      setNotifications((prev) => {
+        const updated = [data.docNot, ...prev];
+        return updated.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      });
+      toast.success("New notification received!");
+    }
+  });
+
   useEffect(() => {
     if (doctor?.id) {
       const fetchData = async () => {
@@ -177,7 +148,7 @@ const DoctorNotifications = () => {
 
   // Filter notifications
   const filteredNotifications = notifications.filter((notif) => {
-    const type = getNotificationType(notif);
+    const type = notif.notificationType;
     const matchesType = filterType === "all" || type === filterType;
     const matchesRead =
       filterRead === "all" ||
@@ -202,6 +173,7 @@ const DoctorNotifications = () => {
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
                   Notifications
+                  <span></span>
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm">
                   {unreadCount > 0 ? (
@@ -304,7 +276,7 @@ const DoctorNotifications = () => {
             </div>
           ) : (
             filteredNotifications.map((notification) => {
-              const type = getNotificationType(notification);
+              const type = notification.notificationType;
               const Icon = getNotificationIcon(type);
               const apt = notification.aptId;
 
@@ -665,7 +637,7 @@ const DoctorNotifications = () => {
           {modalType === "viewDetails" &&
             selectedNotification &&
             (() => {
-              const type = getNotificationType(selectedNotification);
+              const type = selectedNotification.notificationType;
               const Icon = getNotificationIcon(type);
               const apt = selectedNotification.aptId;
 

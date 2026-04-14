@@ -11,7 +11,6 @@ import {
   Stethoscope,
   AlertCircle,
   Play,
-  Eye,
   ArrowRight,
   Pill,
   FlaskRound,
@@ -20,6 +19,7 @@ import toast from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
+import { StatsCard } from "../../components/index";
 
 interface DashboardStats {
   todayAppointments: number;
@@ -190,9 +190,44 @@ const DoctorDashboard = () => {
     );
   };
 
+  const statsData = [
+    {
+      icon: Calendar,
+      icon2: ArrowRight,
+      label: "Today's Appointments",
+      value: stats.todayAppointments,
+      label2: "Total scheduled",
+      color: "blue",
+    },
+    {
+      icon: Clock,
+      icon2: AlertCircle,
+      label: "Pending Consultations",
+      value: stats.pendingConsultations,
+      label2: "Awaiting consultation",
+      color: "yellow",
+    },
+    {
+      icon: CheckCircle,
+      icon2: TrendingUp,
+      label: "Completed Today",
+      value: stats.completedToday,
+      label2: `${stats.completionRate}% completion rate`,
+      color: "green",
+    },
+    {
+      icon: Users,
+      icon2: Activity,
+      label: "Total Patients",
+      value: stats.totalPatients,
+      label2: `Avg. ${stats.avgConsultationTime} minutes per patient`,
+      color: "purple",
+    },
+  ];
+
   return (
     <div className="min-h-screen w-full bg-gray-50 p-3">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl">
         {/* Header */}
         <div className="mb-3">
           <div className="flex items-center justify-between">
@@ -230,72 +265,21 @@ const DoctorDashboard = () => {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
           {/* Today's Appointments */}
-          <div className="bg-blue-100 rounded-lg shadow-lg p-4 text-blue-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-blue-300 bg-opacity-30 p-2 rounded-full">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <ArrowRight className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-blue-700 text-sm font-medium">
-              Today's Appointments
-            </p>
-            <p className="text-2xl font-bold mt-2">{stats.todayAppointments}</p>
-            <p className="text-blue-700 text-xs mt-2">Total scheduled</p>
-          </div>
-
-          {/* Pending Consultations */}
-          <div className="bg-yellow-100 rounded-lg shadow-lg p-4 text-yellow-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-yellow-300 bg-opacity-30 p-2 rounded-full">
-                <Clock className="h-5 w-5" />
-              </div>
-              <AlertCircle className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-yellow-700 text-sm font-medium">
-              Pending Consultations
-            </p>
-            <p className="text-2xl font-bold mt-2">
-              {stats.pendingConsultations}
-            </p>
-            <p className="text-yellow-700 text-xs mt-2">
-              Awaiting consultation
-            </p>
-          </div>
-
-          {/* Completed Today */}
-          <div className="bg-green-100 rounded-lg shadow-lg p-4 text-green-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-green-300 bg-opacity-30 p-2 rounded-full">
-                <CheckCircle className="h-5 w-5" />
-              </div>
-              <TrendingUp className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-green-700 text-sm font-medium">
-              Completed Today
-            </p>
-            <p className="text-2xl font-bold mt-2">{stats.completedToday}</p>
-            <p className="text-green-700 text-xs mt-2">
-              {stats.completionRate}% completion rate
-            </p>
-          </div>
-
-          {/* Total Patients */}
-          <div className="bg-purple-100 rounded-lg shadow-lg p-4 text-purple-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-purple-300 bg-opacity-30 p-2 rounded-full">
-                <Users className="h-5 w-5" />
-              </div>
-              <Activity className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-purple-700 text-sm font-medium">
-              Total Patients
-            </p>
-            <p className="text-2xl font-bold mt-2">{stats.totalPatients}</p>
-            <p className="text-purple-700 text-xs mt-2">
-              Avg. {stats.avgConsultationTime} minutes per patient
-            </p>
-          </div>
+          {statsData.map((stat, index) => {
+            return (
+              <StatsCard
+                key={index}
+                index={index}
+                statType="dashboard"
+                label={stat.label}
+                label2={stat.label2}
+                color={stat.color}
+                icon={stat.icon}
+                icon2={stat.icon2}
+                value={stat.value}
+              />
+            );
+          })}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -553,7 +537,10 @@ const DoctorDashboard = () => {
                   </div>
                 ))}
               </div>
-              <button className="w-full mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+              <button
+                onClick={() => navigate("/doctor/notifications")}
+                className="w-full cursor-pointer mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
                 View All Notifications
               </button>
             </div>

@@ -21,7 +21,7 @@ export interface SpecialistId {
   name: string;
 }
 
-export interface DoctorId {
+export interface DoctorId extends Omit<AppointmentData, "doctorId"> {
   _id: string;
   fullName: string;
   role: string;
@@ -30,14 +30,21 @@ export interface DoctorId {
   specialistId: SpecialistId;
 }
 
-export interface PatientId {
+export interface PatientId extends Omit<AppointmentData, "patientId"> {
   _id: string;
   fullName: string;
+  id_no: string;
+  email: string;
+  phoneNo: string;
   role: string;
+  photo: string;
+  dob: string;
+  address: string;
+  gender: string;
 }
 
 export interface AppointmentData {
-  id: string;
+  _id: string;
   id_no: string;
   patientId: PatientId | string;
   doctorId: DoctorId | string;
@@ -46,13 +53,19 @@ export interface AppointmentData {
   shift: string;
   departmentId?: DepartmentId;
   specialistId?: SpecialistId;
-  status: "Pending" | "Confirmed" | "Completed" | "Cancelled";
+  status:
+    | "Pending"
+    | "Confirmed"
+    | "Completed"
+    | "Cancelled"
+    | "Reschedule Requested"
+    | "Rescheduled";
   reasonForVisit: string;
   handleBy?: string;
-  confirmedAt?: string;
+  confirmedAt?: string | undefined;
   startedAt: string;
-  completedAt?: string;
-  cancelledAt?: string;
+  completedAt?: string | undefined;
+  cancelledAt?: string | undefined;
   createdAt: string;
   updatedAt: string;
   hiddenFor?: [
@@ -98,7 +111,7 @@ export const rescheduleAppointmentApi = (payload: {
   newTime: string;
 }) =>
   axiosInstance.put<{ success: boolean; message: string }>(
-    "/api/appointment/reschedule-appointment",
+    "/appointment/reschedule-appointment",
     payload,
   );
 
@@ -110,6 +123,15 @@ export const confirmAppointmentStatusApi = (appointmentId: string) =>
 
 export const completeAppointmentApi = (appointmentId: string) =>
   axiosInstance.put<{ success: boolean; message: string }>(
-    "/api/appointment/complete-apt-status",
+    "/appointment/complete-apt-status",
     { appointmentId },
+  );
+
+export const rejectRescheduleRequestAptApi = (
+  appointmentId: string | undefined,
+  status: string | undefined,
+) =>
+  axiosInstance.put<{ success: boolean; message: string }>(
+    API_ENDPOINTS.APPOINTMENT.REJECT_RESCHEDULE_REQUEST,
+    { appointmentId, status },
   );

@@ -32,9 +32,9 @@ const TableFilters: React.FC<FilterConfig> = ({
 
   return (
     <div className="space-y-3 mb-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {/* Search Input */}
-        <div className="relative flex-1 sm:col-span-1">
+        <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"

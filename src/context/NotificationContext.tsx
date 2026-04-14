@@ -5,6 +5,7 @@ export interface ICount {
   labOrders: number;
   prescriptions: number;
   notifications: number;
+  resReqApts: number;
 }
 
 type NotificationContextType = {

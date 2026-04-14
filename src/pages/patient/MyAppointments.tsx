@@ -22,28 +22,26 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import { useSelector } from "react-redux";
 import { useSocket, useSocketEvent } from "../../hooks";
-
-interface Appointment {
-  _id: string;
-  doctorId: string;
-  departmentId: string;
-  specialistId: string;
-  shift: string;
-  aptDate: string;
-  appointmentTime: string;
-  status: string;
-  reasonForVisit: string;
-  patientId: string;
-}
+import StatsCard from "../../components/StatsCard";
+import { TableFilters } from "../../components/filter";
+import type {
+  AppointmentData,
+  DepartmentId,
+  DoctorId,
+  SpecialistId,
+} from "../../api";
+import type { IStateData, User } from "../../features";
+import type { TableColumn } from "../../components/table/DataTable";
+import DataTable from "../../components/table/DataTable";
 
 const MyAppointments = () => {
-  const patient = useSelector((state: any) => state.auth.user);
+  const patient: User = useSelector((state: IStateData) => state.auth.user);
   const { isOpen, openModal, closeModal } = useModal();
   const [modalType, setModalType] = useState("");
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
-  const [departments, setDepartments] = useState([]);
-  const [specialists, setSpecialists] = useState([]);
+  const [appointments, setAppointments] = useState<AppointmentData[]>([]);
+  const [selectedApt, setSelectedApt] = useState<AppointmentData>();
+  const [departments, setDepartments] = useState<DepartmentId[] | undefined>();
+  const [specialists, setSpecialists] = useState<SpecialistId[] | undefined>();
   const [dept, setDept] = useState("");
   const [aptFormData, setAptFormData] = useState({
     aptDate: "",
@@ -55,8 +53,12 @@ const MyAppointments = () => {
     reasonForVisit: "",
     patientId: "",
   });
-  const [relatedDoctors, setRelatedDoctors] = useState([]);
+  const [relatedDoctors, setRelatedDoctors] = useState<DoctorId[]>();
   const baseurl = import.meta.env.VITE_BASE_URL;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [dateFilter, setDateFilter] = useState("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -83,6 +85,23 @@ const MyAppointments = () => {
     >,
   ) => {
     const { name, value } = e.target;
+    if (name === "aptDate") {
+      const now = new Date();
+      const todayDate = `${now.getFullYear()}-${String(
+        now.getMonth() + 1,
+      ).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+      if (value === todayDate) {
+        toast.error("You can't book appointment today!");
+        return;
+      }
+      setAptFormData((prev) => ({
+        ...prev,
+        aptDate: value,
+      }));
+
+      return;
+    }
     if (name === "department") {
       setAptFormData({
         ...aptFormData,
@@ -103,11 +122,12 @@ const MyAppointments = () => {
     if (modalType === "resAptDt") {
       setAptFormData({
         ...aptFormData,
-        aptDate: selectedApt.aptDate || aptFormData.aptDate,
-        shift: selectedApt.shift || aptFormData.shift,
+        aptDate: selectedApt?.aptDate || aptFormData.aptDate,
+        shift: selectedApt?.shift || aptFormData.shift,
         appointmentTime:
-          selectedApt.appointmentTime || aptFormData.appointmentTime,
+          selectedApt?.appointmentTime || aptFormData.appointmentTime,
       });
+      return;
     }
     setAptFormData({
       ...aptFormData,
@@ -120,7 +140,7 @@ const MyAppointments = () => {
         `${baseurl}/api/superadmin/fetch/departments`,
       );
       if (response.data.success) {
-        setDepartments(response.data.departments);
+        setDepartments(response.data.departments || undefined);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -138,15 +158,11 @@ const MyAppointments = () => {
         `${baseurl}/api/superadmin/fetch/specialists/${departmentId}`,
       );
       if (response.data.success) {
-        setSpecialists(response.data.specialists);
+        setSpecialists(response.data.specialists || undefined);
       }
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error during registration:", error.message);
-        toast.error(error.message);
-      } else {
-        console.error("Unexpected error during registration:", error);
-      }
+      console.error("Error during registration:", error.response.data.message);
+      toast.error(error.response.data.message);
     }
   };
 
@@ -195,6 +211,7 @@ const MyAppointments = () => {
 
   const fetchPatientAllApts = async () => {
     try {
+      setLoading(true);
       const response = await axios.get(
         `${baseurl}/api/appointment/fetch/patient-all-appointments/${patient.id}`,
       );
@@ -208,6 +225,8 @@ const MyAppointments = () => {
       } else {
         console.error("Unexpected error during registration:", error);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -243,7 +262,7 @@ const MyAppointments = () => {
     fetchDepartmentsData();
   }, []);
 
-  const handleCancelAppointment = async (id: string) => {
+  const handleCancelAppointment = async (id: string | undefined) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/cancel-appointment`,
@@ -263,7 +282,7 @@ const MyAppointments = () => {
       }
     }
   };
-  const handleRescheduleApt = async (id: string) => {
+  const handleRescheduleApt = async (id: string | undefined) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/reschedule-appointment`,
@@ -289,7 +308,7 @@ const MyAppointments = () => {
     }
   };
 
-  const handleDeleteApt = async (id: string) => {
+  const handleDeleteApt = async (id: string | undefined) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/delete-apt`,
@@ -313,49 +332,199 @@ const MyAppointments = () => {
     }
   };
 
+  const filteredAppointments = appointments.filter((apt) => {
+    const matchesSearch =
+      apt.id_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      typeof apt.patientId === "string"
+        ? apt.patientId
+        : apt.patientId.fullName
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          apt.patientId?.id_no
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase());
+
+    const matchesStatus = statusFilter === "All" || apt.status === statusFilter;
+    const matchesDate = !dateFilter || apt.aptDate === dateFilter;
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
   const stats = [
     {
       label: "Total",
-      count: appointments.length,
+      value: appointments.length,
       icon: Calendar,
       color: "blue",
     },
     {
       label: "Pending",
-      count: appointments.filter((apt) => apt.status === "Pending").length,
+      value: appointments.filter((apt) => apt.status === "Pending").length,
       icon: Clock,
       color: "yellow",
     },
     {
       label: "Confirmed",
-      count: appointments.filter((apt) => apt.status === "Confirmed").length,
+      value: appointments.filter((apt) => apt.status === "Confirmed").length,
       icon: CheckCircle,
       color: "green",
     },
     {
       label: "Completed",
-      count: appointments.filter((apt) => apt.status === "Completed").length,
+      value: appointments.filter((apt) => apt.status === "Completed").length,
       icon: Check,
       color: "blue",
     },
     {
       label: "Cancelled",
-      count: appointments.filter((apt) => apt.status === "Cancelled").length,
+      value: appointments.filter((apt) => apt.status === "Cancelled").length,
       icon: XCircle,
       color: "red",
     },
     {
       label: "Rescheduled",
-      count: appointments.filter((apt) => apt.status === "Rescheduled").length,
+      value: appointments.filter((apt) => apt.status === "Rescheduled").length,
       icon: CalendarSync,
       color: "purple",
     },
     {
       label: "Reschedule Requests",
-      count: appointments.filter((apt) => apt.status === "Reschedule Requests")
+      value: appointments.filter((apt) => apt.status === "Reschedule Requested")
         .length,
       icon: CalendarPlus,
-      color: "amber",
+      color: "orange",
+    },
+  ];
+
+  const flattenedData = filteredAppointments.map((apt) => ({
+    ...apt,
+    parentTest: apt,
+  }));
+
+  const columns: TableColumn[] = [
+    {
+      key: "doctor",
+      label: "Doctor",
+      render: (_, row) => (
+        <div className="flex items-center">
+          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <img
+              src={`${baseurl}/images/uploads/${typeof row.parentTest.doctorId !== "string" && row.parentTest.doctorId?.photo}`}
+              alt={
+                typeof row.parentTest?.doctorId !== "string"
+                  ? row.parentTest.doctorId?._id
+                  : row.parentTest.doctorId
+              }
+              className="rounded-full h-10 w-10 object-center object-cover"
+            />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm font-medium text-gray-900">
+              {typeof row.parentTest.doctorId !== "string" &&
+                row.parentTest.doctorId.fullName}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "department",
+      label: "Department",
+      render: (_, row) => (
+        <span className="text-sm text-gray-900">
+          {row.parentTest?.departmentId?.name}
+        </span>
+      ),
+    },
+    {
+      key: "time&date",
+      label: "Time & Date",
+      render: (_, row) => (
+        <>
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 text-gray-400" />
+            <span className="text-sm text-gray-900">
+              {new Date(row.parentTest.aptDate).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3 text-gray-400" />
+            <span className="text-sm text-gray-900">
+              {row.parentTest.appointmentTime}
+            </span>
+          </div>
+        </>
+      ),
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (_, row) => (
+        <span className="text-sm text-gray-600">
+          {`${row.parentTest.reasonForVisit.slice(0, 20)}${row.parentTest.reasonForVisit.length > 20 ? "..." : ""}`}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (_, row) => (
+        <span
+          className={`px-3 py-1 inline-flex text-xs leading-5 capitalize font-semibold rounded-full ${getStatusColor(row.parentTest.status)}`}
+        >
+          {row.parentTest.status}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (_, row) => (
+        <div className="flex items-center gap-2">
+          <button
+            className="text-blue-600 hover:text-blue-800 font-medium text-sm cursor-pointer"
+            title="View Details"
+            onClick={() => {
+              openModal();
+              setModalType("viewDetail");
+              setSelectedApt(row.parentTest);
+            }}
+          >
+            <Eye className="h-5 w-5" />
+          </button>
+          {(row.parentTest.status === "Pending" ||
+            row.parentTest.status === "Confirmed") && (
+            <button
+              onClick={() => {
+                openModal();
+                setModalType("cancelApt");
+                setSelectedApt(row.parentTest);
+              }}
+              className="text-red-600 hover:text-red-800 font-medium text-sm cursor-pointer"
+              title="Cancel Appointment"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
+          {row.parentTest.status === "Completed" && (
+            <button
+              onClick={() => {
+                openModal();
+                setModalType("deleteApt");
+                setSelectedApt(row.parentTest);
+              }}
+              className="text-red-600 hover:text-red-800 font-medium text-sm cursor-pointer"
+              title="Cancel Appointment"
+            >
+              <Trash className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -388,190 +557,73 @@ const MyAppointments = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-4 lg:grid-cols-6 gap-3 mb-3">
-          {stats.map((item, index) => {
-            const Icon = item.icon;
-
+          {stats.map((stat, index) => {
             return (
-              <div
+              <StatsCard
                 key={index}
-                className="bg-white rounded-lg shadow-sm p-3 flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">
-                    {item.label}
-                  </p>
-                  <p
-                    className={`text-lg font-bold text-${item.color}-600 mt-1`}
-                  >
-                    {item.count}
-                  </p>
-                </div>
-
-                <div className={`bg-${item.color}-100 p-2 rounded-full`}>
-                  <Icon className={`h-5 w-5 text-${item.color}-600`} />
-                </div>
-              </div>
+                index={index}
+                label={stat.label}
+                value={stat.value}
+                color={stat.color}
+                icon={stat.icon}
+              />
             );
           })}
         </div>
 
+        <TableFilters
+          searchPlaceholder="Search by appointment ID or patient ID, name..."
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={[
+            {
+              id: "status",
+              label: "Status",
+              type: "select",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { label: "All", value: "All" },
+                { label: "Pending", value: "Pending" },
+                { label: "Confirmed", value: "Confirmed" },
+                { label: "Completed", value: "Completed" },
+                { label: "Cancelled", value: "Cancelled" },
+                {
+                  label: "Reschedule Requested",
+                  value: "Reschedule Requested",
+                },
+                { label: "Rescheduled", value: "Rescheduled" },
+              ],
+            },
+            {
+              id: "date",
+              label: "Date",
+              type: "date",
+              value: dateFilter,
+              onChange: setDateFilter,
+            },
+          ]}
+          onClearAll={() => {
+            setSearchTerm("");
+            setStatusFilter("All");
+            setDateFilter("");
+          }}
+        />
+
         {/* Appointments Table */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border border-gray-200 shadow-2xl overflow-x-auto">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Doctor
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Department
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Date & Time
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Reason
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {appointments.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <Calendar className="h-16 w-16 text-gray-300 mb-4" />
-                        <p className="text-gray-500 text-lg font-medium">
-                          No appointments found
-                        </p>
-                        <p className="text-gray-400 mt-1">
-                          Book your first appointment to get started
-                        </p>
-                        <button
-                          onClick={handleAddAppointment}
-                          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                        >
-                          Add Appointment
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  appointments.map((appointment) => (
-                    <tr
-                      key={appointment._id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <img
-                              src={`${baseurl}/images/uploads/${appointment.doctorId.photo}`}
-                              alt={appointment.doctorId.photo}
-                              className="rounded-full h-10 w-10 object-center object-cover"
-                            />
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm font-medium text-gray-900">
-                              {appointment.doctorId.fullName}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-900">
-                          {appointment.departmentId.name}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-gray-400" />
-                          <span className="text-sm text-gray-900">
-                            {new Date(appointment.aptDate).toLocaleDateString(
-                              "en-US",
-                              {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              },
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-gray-400" />
-                          <span className="text-sm text-gray-900">
-                            {appointment.appointmentTime}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">
-                          {`${appointment.reasonForVisit.slice(0, 20)}${appointment.reasonForVisit.length > 20 ? "..." : ""}`}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(appointment.status)}`}
-                        >
-                          {appointment.status.charAt(0).toUpperCase() +
-                            appointment.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            className="text-blue-600 hover:text-blue-800 font-medium text-sm cursor-pointer"
-                            title="View Details"
-                            onClick={() => {
-                              openModal();
-                              setModalType("viewDetail");
-                              setSelectedApt(appointment);
-                            }}
-                          >
-                            <Eye className="h-5 w-5" />
-                          </button>
-                          {(appointment.status === "Pending" ||
-                            appointment.status === "Confirmed") && (
-                            <button
-                              onClick={() => {
-                                openModal();
-                                setModalType("cancelApt");
-                                setSelectedApt(appointment);
-                              }}
-                              className="text-red-600 hover:text-red-800 font-medium text-sm cursor-pointer"
-                              title="Cancel Appointment"
-                            >
-                              <X className="h-5 w-5" />
-                            </button>
-                          )}
-                          {appointment.status === "Completed" && (
-                            <button
-                              onClick={() => {
-                                openModal();
-                                setModalType("deleteApt");
-                                setSelectedApt(appointment);
-                              }}
-                              className="text-red-600 hover:text-red-800 font-medium text-sm cursor-pointer"
-                              title="Cancel Appointment"
-                            >
-                              <Trash className="h-5 w-5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          columns={columns}
+          data={flattenedData}
+          loading={loading}
+          emptyStateIcon={Calendar}
+          emptyStateTitle="No appointment found"
+          emptyStateDescription={
+            searchTerm || statusFilter !== "All" || dateFilter
+              ? "Try adjusting your filters"
+              : "No appointment today"
+          }
+        />
+
         <Modal
           isOpen={isOpen}
           title={
@@ -594,18 +646,18 @@ const MyAppointments = () => {
             modalType === "addApt"
               ? handleAddAppointment
               : (modalType === "cancelApt" || modalType === "viewDetail") &&
-                  selectedApt.status === "Completed"
+                  selectedApt?.status === "Completed"
                 ? () =>
                     toast.error(
                       "You can not cancel an already completed appointment.",
                     )
                 : (modalType === "cancelApt" || modalType === "viewDetail") &&
-                    selectedApt.status !== "Completed"
-                  ? () => handleCancelAppointment(selectedApt._id)
+                    selectedApt?.status !== "Completed"
+                  ? () => handleCancelAppointment(selectedApt?._id)
                   : modalType === "resAptDt"
-                    ? () => handleRescheduleApt(selectedApt._id)
+                    ? () => handleRescheduleApt(selectedApt?._id)
                     : modalType === "deleteApt"
-                      ? () => handleDeleteApt(selectedApt._id)
+                      ? () => handleDeleteApt(selectedApt?._id)
                       : undefined
           }
           confirmText={
@@ -641,13 +693,18 @@ const MyAppointments = () => {
               ? "bg-red-700 hover:bg-red-400 text-white border-0"
               : "bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           }
+          onBtn1={() => ""}
+          btn1Color=""
+          btn1Icon=""
+          btn1Text=""
           onCancel={
-            modalType === "viewDetail" && selectedApt.status === "Completed"
+            modalType === "viewDetail" && selectedApt?.status === "Completed"
               ? () =>
                   toast.error(
                     "You can not reschedule a completed appointment. This appointment is already completed.",
                   )
-              : modalType === "viewDetail" && selectedApt.status !== "Completed"
+              : modalType === "viewDetail" &&
+                  selectedApt?.status !== "Completed"
                 ? () => setModalType("resAptDt")
                 : modalType === "resAptDt"
                   ? () => setModalType("viewDetail")
@@ -684,6 +741,7 @@ const MyAppointments = () => {
                       name="aptDate"
                       min={new Date().toISOString().split("T")[0]}
                       onChange={handleInputChange}
+                      value={aptFormData?.aptDate || ""}
                       placeholder="Enter your full name"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
                       required
@@ -705,7 +763,7 @@ const MyAppointments = () => {
                       required
                     >
                       <option value="">Select Department</option>
-                      {departments.map((dept) => (
+                      {departments?.map((dept) => (
                         <option key={dept._id} value={dept._id}>
                           {dept.name}
                         </option>
@@ -730,7 +788,7 @@ const MyAppointments = () => {
                       required
                     >
                       <option value="">Select Specialist</option>
-                      {specialists.map((spec) => (
+                      {specialists?.map((spec) => (
                         <option key={spec._id} value={spec._id}>
                           {spec.name}
                         </option>
@@ -749,7 +807,7 @@ const MyAppointments = () => {
                       onChange={handleInputChange}
                     >
                       <option value="">Select Doctor</option>
-                      {relatedDoctors.map((doc) => (
+                      {relatedDoctors?.map((doc) => (
                         <option key={doc._id} value={doc._id}>
                           {doc.fullName}
                         </option>
@@ -909,7 +967,9 @@ const MyAppointments = () => {
                       Patient Name
                     </label>
                     <p className="text-base text-gray-900 font-medium">
-                      {selectedApt.patientId.fullName || "N/A"}
+                      {(typeof selectedApt?.patientId !== "string" &&
+                        selectedApt.patientId.fullName) ||
+                        "N/A"}
                     </p>
                   </div>
 
@@ -918,7 +978,9 @@ const MyAppointments = () => {
                       Patient ID
                     </label>
                     <p className="text-base text-gray-900 font-mono">
-                      {selectedApt.patientId.id_no || "N/A"}
+                      {(typeof selectedApt?.patientId !== "string" &&
+                        selectedApt.patientId.id_no) ||
+                        "N/A"}
                     </p>
                   </div>
 
@@ -927,23 +989,26 @@ const MyAppointments = () => {
                       Contact Number
                     </label>
                     <p className="text-base text-gray-900">
-                      {selectedApt.patientId.phoneNo || "N/A"}
+                      {(typeof selectedApt?.patientId !== "string" &&
+                        selectedApt.patientId.phoneNo) ||
+                        "N/A"}
                     </p>
                   </div>
 
-                  {selectedApt.patientId.email && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        Email
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-gray-400" />
-                        <p className="text-base text-gray-900">
-                          {selectedApt.patientId.email}
-                        </p>
+                  {typeof selectedApt?.patientId !== "string" &&
+                    selectedApt?.patientId?.id_no && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          Email
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400" />
+                          <p className="text-base text-gray-900">
+                            {selectedApt?.patientId?.email}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
 
                 {/* Doctor Information */}
@@ -958,7 +1023,8 @@ const MyAppointments = () => {
                     </label>
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        {selectedApt.doctorId.photo ? (
+                        {typeof selectedApt.doctorId !== "string" &&
+                        selectedApt.doctorId.photo ? (
                           <img
                             src={`${baseurl}/images/uploads/${selectedApt.doctorId.photo}`}
                             alt={selectedApt.doctorId.photo}
@@ -966,15 +1032,19 @@ const MyAppointments = () => {
                           />
                         ) : (
                           <span className="text-blue-600 font-semibold text-sm">
-                            {selectedApt.doctorId.fullName
-                              ?.split(" ")
-                              .map((n) => n[0])
-                              .join("") || "?"}
+                            {(typeof selectedApt.doctorId !== "string" &&
+                              selectedApt.doctorId.fullName
+                                ?.split(" ")
+                                .map((n) => n[0])
+                                .join("")) ||
+                              "?"}
                           </span>
                         )}
                       </div>
                       <p className="text-base text-gray-900 font-medium">
-                        {selectedApt.doctorId.fullName || "N/A"}
+                        {(typeof selectedApt.doctorId !== "string" &&
+                          selectedApt.doctorId.id_no) ||
+                          "N/A"}
                       </p>
                     </div>
                   </div>
@@ -984,7 +1054,7 @@ const MyAppointments = () => {
                       Department
                     </label>
                     <p className="text-base text-gray-900">
-                      {selectedApt.departmentId.name || "N/A"}
+                      {selectedApt?.departmentId?.name || "N/A"}
                     </p>
                   </div>
 
@@ -1104,7 +1174,8 @@ const MyAppointments = () => {
               <h1 className="">
                 Are you sure you want to cancel appointment with{" "}
                 <span className="font-bold">
-                  {selectedApt.doctorId?.fullName}
+                  {typeof selectedApt.doctorId !== "string" &&
+                    selectedApt.doctorId.fullName}
                 </span>
                 ?
               </h1>
@@ -1124,7 +1195,8 @@ const MyAppointments = () => {
                   <p className="text-sm text-blue-900">
                     Rescheduling appointment with{" "}
                     <span className="font-semibold">
-                      {selectedApt.doctorId?.fullName}
+                      {typeof selectedApt.doctorId !== "string" &&
+                        selectedApt.doctorId.fullName}
                     </span>
                   </p>
                 </div>

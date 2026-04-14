@@ -4,54 +4,59 @@ import {
   FileText,
   CreditCard,
   Clock,
-  User,
   Heart,
   Thermometer,
   TrendingUp,
   AlertCircle,
   CheckCircle,
   ArrowRight,
+  Users,
+  CalendarMinus,
+  DollarSign,
 } from "lucide-react";
 import { useSelector } from "react-redux";
+import { StatsCard } from "../..//components/index";
+import type { IStateData } from "../../features";
 
 const PatientDashboard = () => {
-  const patient = useSelector((state: any) => state.auth);
+  const patient = useSelector((state: IStateData) => state.auth.user);
   console.log("Authenticated Patient Data:", patient);
+
   const stats = [
     {
-      title: "Upcoming Appointments",
+      label: "Upcoming Appointments",
       value: "3",
-      icon: <Calendar className="w-6 h-6" />,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-600",
-      trend: "+2 this week",
-      trendUp: true,
+      icon: Calendar,
+      icon2: Clock,
+      color: "yellow",
+      label2: "+2 this week",
+      trendUp: false,
     },
     {
-      title: "Medical Records",
+      label: "Medical Records",
       value: "24",
-      icon: <FileText className="w-6 h-6" />,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-600",
-      trend: "5 recent",
+      icon: FileText,
+      icon2: Users,
+      color: "blue",
+      label2: "5 recent",
       trendUp: false,
     },
     {
-      title: "Active Prescriptions",
+      label: "Active Prescriptions",
       value: "5",
-      icon: <Activity className="w-6 h-6" />,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-600",
-      trend: "2 expiring soon",
+      icon: Activity,
+      icon2: CalendarMinus,
+      color: "purple",
+      label2: "2 expiring soon",
       trendUp: false,
     },
     {
-      title: "Outstanding Bills",
+      label: "Outstanding Bills",
       value: "$245",
-      icon: <CreditCard className="w-6 h-6" />,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-600",
-      trend: "Due in 5 days",
+      icon: CreditCard,
+      icon2: DollarSign,
+      color: "green",
+      label2: "Due in 5 days",
       trendUp: false,
     },
   ];
@@ -150,49 +155,38 @@ const PatientDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-8 shadow-lg">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold mb-2">Welcome back, John!</h1>
-          <p className="text-blue-100">Here's your health overview for today</p>
+    <div className="min-h-screen bg-gray-50 p-3">
+      <div className="max-w-7xl">
+        {/* Header */}
+        <div className="text-blue-600 mb-3">
+          <div className="">
+            <h1 className="text-2xl font-bold mb-1">Welcome back, John!</h1>
+            <p className="text-blue-500 text-sm">
+              Here's your health overview for today
+            </p>
+          </div>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           {stats.map((stat, index) => (
-            <div
+            <StatsCard
               key={index}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <span className={stat.iconColor}>{stat.icon}</span>
-                </div>
-                {stat.trendUp ? (
-                  <TrendingUp className="w-4 h-4 text-green-500" />
-                ) : (
-                  <Clock className="w-4 h-4 text-gray-400" />
-                )}
-              </div>
-              <h3 className="text-gray-600 text-sm font-medium mb-1">
-                {stat.title}
-              </h3>
-              <p className="text-3xl font-bold text-gray-800 mb-2">
-                {stat.value}
-              </p>
-              <p className="text-xs text-gray-500">{stat.trend}</p>
-            </div>
+              index={index}
+              statType="dashboard"
+              label={stat.label}
+              color={stat.color}
+              icon={stat.icon}
+              icon2={stat.icon2}
+              value={stat.value}
+              label2={stat.label2}
+            />
           ))}
         </div>
 
         {/* Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
           {/* Upcoming Appointments - Takes 2 columns */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <Calendar className="w-6 h-6 text-blue-600" />
@@ -204,11 +198,11 @@ const PatientDashboard = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
               {upcomingAppointments.map((appointment, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-blue-200"
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors border border-gray-200 hover:border-blue-200"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
@@ -249,13 +243,13 @@ const PatientDashboard = () => {
           </div>
 
           {/* Recent Activities */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
               <Clock className="w-6 h-6 text-blue-600" />
               Recent Activity
             </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
               {recentActivities.map((activity, index) => (
                 <div
                   key={index}
@@ -288,7 +282,7 @@ const PatientDashboard = () => {
         </div>
 
         {/* Health Metrics */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-3">
           <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
             <Heart className="w-6 h-6 text-blue-600" />
             Latest Health Metrics
@@ -320,40 +314,6 @@ const PatientDashboard = () => {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              title: "View Medical Records",
-              icon: <FileText className="w-6 h-6" />,
-              color: "bg-blue-600 hover:bg-blue-700",
-            },
-            {
-              title: "Prescription Refill",
-              icon: <Activity className="w-6 h-6" />,
-              color: "bg-blue-600 hover:bg-blue-700",
-            },
-            {
-              title: "Pay Bills",
-              icon: <CreditCard className="w-6 h-6" />,
-              color: "bg-blue-600 hover:bg-blue-700",
-            },
-            {
-              title: "Update Profile",
-              icon: <User className="w-6 h-6" />,
-              color: "bg-blue-600 hover:bg-blue-700",
-            },
-          ].map((action, index) => (
-            <button
-              key={index}
-              className={`${action.color} text-white p-4 rounded-xl shadow-md transition-all duration-200 hover:shadow-lg hover:scale-105 flex items-center gap-3`}
-            >
-              {action.icon}
-              <span className="font-medium">{action.title}</span>
-            </button>
-          ))}
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ import {
   markAsSeenLabOrdersApi,
   markAsSeenNotificationsApi,
   markAsSeenPrescriptionsApi,
+  markAsSeenResReqAptsApi,
 } from "../../api/index";
 
 type SidebarProps = {
@@ -54,30 +55,31 @@ const Sidebar = (props: SidebarProps) => {
   console.log(unreadCount);
   const handleItemClick = async (title: string) => {
     try {
-      if (title === "Appointments") {
-        await markAsSeenAppointmentsApi();
-      }
+      switch (title) {
+        case "Appointments":
+        case "My Appointments":
+          await markAsSeenAppointmentsApi();
+          break;
 
-      if (title === "My Appointments") {
-        await markAsSeenAppointmentsApi();
-      }
+        case "Lab Orders":
+        case "Lab Reports":
+          await markAsSeenLabOrdersApi();
+          break;
 
-      if (title === "Lab Orders") {
-        await markAsSeenLabOrdersApi();
-      }
+        case "Prescriptions":
+          await markAsSeenPrescriptionsApi();
+          break;
 
-      if (title === "Lab Reports") {
-        await markAsSeenLabOrdersApi();
-      }
+        case "Notifications":
+          await markAsSeenNotificationsApi();
+          break;
 
-      if (title === "Notifications") {
-        const response = await markAsSeenNotificationsApi();
-        console.log(response.data.message);
-      }
+        case "Requests":
+          await markAsSeenResReqAptsApi();
+          break;
 
-      if (title === "Prescriptions") {
-        const res = await markAsSeenPrescriptionsApi();
-        console.log(res.data.message);
+        default:
+          break;
       }
 
       const res = await getUnReadCountsApi();
@@ -90,17 +92,17 @@ const Sidebar = (props: SidebarProps) => {
   const getCount = (title: string) => {
     switch (title) {
       case "Appointments":
-        return unreadCount.appointments;
       case "My Appointments":
         return unreadCount.appointments;
       case "Lab Orders":
-        return unreadCount.labOrders;
       case "Lab Reports":
         return unreadCount.labOrders;
       case "Prescriptions":
         return unreadCount.prescriptions;
       case "Notifications":
         return unreadCount.notifications;
+      case "Requests":
+        return unreadCount.resReqApts;
       default:
         return 0;
     }

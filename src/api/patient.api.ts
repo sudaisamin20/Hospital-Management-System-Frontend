@@ -67,3 +67,18 @@ export const getPatientMedicalRecordsApi = (patientId: string) =>
   axiosInstance.get<{ success: boolean; records: PatientMedicalRecords }>(
     API_ENDPOINTS.PATIENT.MEDICAL_RECORDS.replace(":patientId", patientId),
   );
+
+export const getPatientDashboardDataApi = () =>
+  axiosInstance.get<{
+    success: boolean;
+    message: string;
+    stats: {
+      upcomingAppointments: number;
+      totalMedicalRecords: number;
+      activePrescriptions: number;
+      outstandingBills: number;
+    };
+    upcomingAppointments: number;
+    recentActivity: number;
+    notifications: number;
+  }>(API_ENDPOINTS.PATIENT.DASHBOARD_DATA);

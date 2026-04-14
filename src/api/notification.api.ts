@@ -91,7 +91,7 @@ export const getUnReadCountsApi = () =>
     success: boolean;
     message: string;
     counts: ICount;
-  }>(API_ENDPOINTS.APPOINTMENT.UNREAD);
+  }>(API_ENDPOINTS.NOTIFICATION.UNREAD);
 
 export const markAsSeenAppointmentsApi = () =>
   axiosInstance.put<{ success: boolean; message: string }>(
@@ -111,4 +111,15 @@ export const markAsSeenLabOrdersApi = () =>
 export const markAsSeenNotificationsApi = () =>
   axiosInstance.put<{ success: boolean; message: string }>(
     API_ENDPOINTS.NOTIFICATION.MARK_AS_SEEN,
+  );
+
+export const markAsSeenResReqAptsApi = () =>
+  axiosInstance.put<{
+    success: boolean;
+    message: string;
+  }>(API_ENDPOINTS.RECEPTIONIST.MARK_AS_SEEN_RES_REQ_APTS);
+
+export const getUnReadAppointmentsApi = () =>
+  axiosInstance.get<{ success: boolean; message: string; count: number }>(
+    API_ENDPOINTS.APPOINTMENT.MARK_AS_SEEN,
   );

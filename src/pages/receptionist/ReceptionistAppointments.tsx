@@ -20,32 +20,51 @@ import Modal from "../../components/Modal";
 import { useSelector } from "react-redux";
 import { useSocket } from "../../hooks/useSocket";
 import { useSocketEvent } from "../../hooks/useSocketEvent";
-import { useNotification } from "../../hooks";
+import type { IStateData, User as IUser } from "../../features";
 
 interface Appointment {
   _id: string;
-  patientId: string;
-  doctorId: string;
-  departmentId: string;
-  specialistId: string;
+  id_no: string;
+  patientId: {
+    fullName: string;
+    id_no: string;
+    _id: string;
+    phoneNo: string;
+  };
+  doctorId: {
+    fullName: string;
+    id_no: string;
+    _id: string;
+    photo: string;
+  };
+  departmentId: {
+    name: string;
+  };
+  specialistId: {
+    name: string;
+  };
   aptDate: string;
   appointmentTime: string;
   shift: string;
   status: string;
   reasonForVisit: string;
   createdAt: string;
+  confirmedAt: string;
+  completedAt: string;
 }
 
 const ReceptionistAppointments = () => {
   const { isOpen, openModal, closeModal } = useModal();
-  const receptionist = useSelector((state: any) => state.auth.user);
+  const receptionist: IUser = useSelector(
+    (state: IStateData) => state.auth.user,
+  );
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [modalType, setModalType] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>({});
+  const [selectedApt, setSelectedApt] = useState<Appointment | null>();
   const baseurl = import.meta.env.VITE_BASE_URL;
 
   const getStatusColor = (status: string) => {
@@ -59,6 +78,8 @@ const ReceptionistAppointments = () => {
       case "Cancelled":
         return "bg-red-100 text-red-800";
       case "Reschedule Requested":
+        return "bg-amber-100 text-amber-800";
+      case "Rescheduled":
         return "bg-amber-100 text-amber-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -131,7 +152,7 @@ const ReceptionistAppointments = () => {
     toast.success("New appointment added! See details for confirmation.");
   });
 
-  const handleConfirmApt = async (id: string) => {
+  const handleConfirmApt = async (id: string | undefined) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/confirm-apt-status`,
@@ -145,8 +166,8 @@ const ReceptionistAppointments = () => {
       }
     } catch (error) {
       if (error instanceof Error) {
-        console.error("Error during registration:", error.response?.data);
-        toast.error(error.response?.data?.message);
+        console.error("Error during registration:", error?.response?.data);
+        toast.error(error?.response?.data?.message);
       } else {
         console.error("Unexpected error during registration:", error);
       }
@@ -176,7 +197,7 @@ const ReceptionistAppointments = () => {
     fetchAllAppointments();
   };
 
-  const handleDeleteApt = async (id: string) => {
+  const handleDeleteApt = async (id: string | undefined) => {
     try {
       const response = await axios.put(
         `${baseurl}/api/appointment/delete-apt`,
@@ -194,7 +215,7 @@ const ReceptionistAppointments = () => {
       } else {
         console.error(
           "Unexpected error during registration:",
-          error?.response?.data,
+          error?.response?.data.message,
         );
       }
     }
@@ -237,7 +258,7 @@ const ReceptionistAppointments = () => {
     <div className="min-h-screen w-full bg-gray-50 p-3">
       <div className="max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
+        <div className="p-3 mb-3">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
             <div>
               <h1 className="text-xl font-bold text-gray-900">
@@ -608,34 +629,21 @@ const ReceptionistAppointments = () => {
           onClose={closeModal}
           title={
             modalType === "viewDetail"
-              ? `${selectedApt.patientId.fullName}'s Appointment Details`
+              ? `${selectedApt?.patientId?.fullName}'s Appointment Details`
               : modalType === "deleteApt"
                 ? "Delete Appointment"
                 : ""
           }
           onConfirm={
-            (selectedApt?.status === "Comfirmed" ||
-              selectedApt?.status === "Completed") &&
-            selectedApt?.confirmedAt &&
-            modalType === "viewDetail"
-              ? () => toast.error("This appointment is already completed!")
+            selectedApt?.status !== "Pending"
+              ? ""
               : modalType === "viewDetail"
-                ? () => handleConfirmApt(selectedApt._id)
+                ? () => handleConfirmApt(selectedApt?._id)
                 : modalType === "deleteApt"
-                  ? () => handleDeleteApt(selectedApt._id)
+                  ? () => handleDeleteApt(selectedApt?._id)
                   : undefined
           }
-          onCancel={
-            selectedApt?.status === "Completed" &&
-            selectedApt?.completedAt &&
-            modalType === "viewDetail"
-              ? () => toast.error("This appointment is already completed!")
-              : modalType === "viewDetail"
-                ? () => handleMarkAsCom(selectedApt._id)
-                : modalType === "deleteApt"
-                  ? closeModal
-                  : undefined
-          }
+          onCancel={selectedApt?.status !== "Pending" ? undefined : closeModal}
           confirmText={
             modalType === "viewDetail"
               ? "Confirm Appointment"
@@ -643,9 +651,7 @@ const ReceptionistAppointments = () => {
                 ? "Delete Appointment"
                 : ""
           }
-          cancelText={
-            modalType === "viewDetail" ? "Mark as Completed" : "Cancel"
-          }
+          cancelText={"Close"}
           confirmIcon={
             modalType === "viewDetail" ? (
               <CheckCircle className="w-5 h-5 mr-2" />
@@ -655,18 +661,7 @@ const ReceptionistAppointments = () => {
               ""
             )
           }
-          cancelIcon={
-            modalType === "viewDetail" ? (
-              <Check className="w-5 h-5 mr-2" />
-            ) : (
-              <X className="w-5 h-5 mr-2" />
-            )
-          }
-          cancelColor={
-            modalType === "deleteApt"
-              ? "border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-medium"
-              : "bg-green-600 hover:bg-green-700 text-white"
-          }
+          cancelIcon={<X className="w-5 h-5 mr-2" />}
           width="max-w-2/3"
           height="max-h-[450px]"
           confirmColor={
@@ -676,10 +671,10 @@ const ReceptionistAppointments = () => {
           }
         >
           {modalType === "viewDetail" && selectedApt && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Appointment ID and Created Date */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-600 font-medium">
                       Appointment ID:{" "}
@@ -689,30 +684,35 @@ const ReceptionistAppointments = () => {
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600 font-medium">Created: </span>
+                    <span className="text-gray-600 font-medium">
+                      Confirmed At:{" "}
+                    </span>
                     <span className="text-gray-900">
-                      {new Date(selectedApt.createdAt).toLocaleString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {new Date(selectedApt.confirmedAt).toLocaleString(
+                        "en-US",
+                        {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Patient and Doctor Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Patient Information */}
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Patient Information
                   </h4>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
                         Full Name
@@ -746,13 +746,13 @@ const ReceptionistAppointments = () => {
                 </div>
 
                 {/* Doctor Information */}
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Doctor Information
                   </h4>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
                         Doctor Name
@@ -809,14 +809,14 @@ const ReceptionistAppointments = () => {
               </div>
 
               {/* Appointment Schedule */}
-              <div className="bg-blue-50 rounded-lg p-6">
+              <div className="bg-blue-50 rounded-lg p-3">
                 <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   Appointment Schedule
                 </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="bg-white rounded-lg p-3 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="bg-blue-100 p-2 rounded-lg">
                         <Calendar className="h-5 w-5 text-blue-600" />
@@ -839,7 +839,7 @@ const ReceptionistAppointments = () => {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="bg-white rounded-lg p-3 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="bg-green-100 p-2 rounded-lg">
                         <Clock className="h-5 w-5 text-green-600" />
@@ -855,7 +855,7 @@ const ReceptionistAppointments = () => {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="bg-white rounded-lg p-3 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="bg-purple-100 p-2 rounded-lg">
                         <Clock className="h-5 w-5 text-purple-600" />
@@ -871,7 +871,7 @@ const ReceptionistAppointments = () => {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-lg p-4 shadow-sm">
+                  <div className="bg-white rounded-lg p-3 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div
                         className={`${getStatusColor(selectedApt.status)} bg-purple-100 p-2 rounded-lg`}
@@ -893,10 +893,10 @@ const ReceptionistAppointments = () => {
 
               {/* Reason for Visit */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
+                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-1">
                   Reason for Visit
                 </label>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-gray-900 leading-relaxed">
                     {selectedApt.reasonForVisit || "No reason provided"}
                   </p>
@@ -909,7 +909,7 @@ const ReceptionistAppointments = () => {
               <h1 className="">
                 Are you sure you want to cancel appointment with{" "}
                 <span className="font-bold">
-                  {selectedApt.doctorId?.fullName}
+                  {selectedApt?.doctorId?.fullName}
                 </span>
                 ?
               </h1>

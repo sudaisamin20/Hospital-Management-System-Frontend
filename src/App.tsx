@@ -39,6 +39,7 @@ import {
   AppointmentRescheduleRequests,
   ReceptionistAppointments,
   ReceptionistDashboard,
+  ReceptionistNotifications,
 } from "./pages/receptionist";
 
 // Pharmacist Pages
@@ -92,6 +93,7 @@ function App() {
             path="appointment-reschedule-request"
             element={<AppointmentRescheduleRequests />}
           />
+          <Route path="notifications" element={<ReceptionistNotifications />} />
         </Route>
         <Route path="/doctor" element={<SidebarContentPage />}>
           <Route index element={<Navigate to="/doctor/dashboard" />} />
