@@ -21,7 +21,7 @@ import {
   type Notification,
 } from "../../api";
 import { useAppSelector, useSocket, useSocketEvent } from "../../hooks";
-import { getNotificationColor, getNotificationIcon } from "../../components";
+import { getNotificationColor, getNotificationIcon } from "../../helpers/index";
 
 const ReceptionistNotifications = () => {
   const receptionist = useAppSelector((state: any) => state?.auth?.user);

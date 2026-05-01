@@ -21,321 +21,66 @@ import {
 import toast from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-// import axiosInstance from "../../api/axiosInstance";
-
-// ─── Interfaces ───────────────────────────────────────────────────────────────
-
-interface DashboardStats {
-  totalAppointmentsToday: number;
-  patientsCheckedIn: number;
-  patientsWaiting: number;
-  appointmentsCancelled: number;
-  newRegistrationsToday: number;
-  avgWaitTime: string;
-}
-
-interface WaitingPatient {
-  _id: string;
-  id_no: string;
-  patientName: string;
-  patientId: string;
-  checkInTime: string;
-  appointmentTime: string;
-  doctorName: string;
-  status: "Waiting" | "With Doctor" | "Called";
-  waitMinutes: number;
-}
-
-interface TodayAppointment {
-  _id: string;
-  id_no: string;
-  patientName: string;
-  doctorName: string;
-  appointmentTime: string;
-  reason: string;
-  status: "Scheduled" | "Checked In" | "Completed" | "Cancelled" | "No Show";
-  shift: string;
-}
-
-interface RecentActivity {
-  _id: string;
-  type: "check_in" | "registration" | "cancellation" | "reschedule" | "call";
-  patientName: string;
-  action: string;
-  timestamp: string;
-}
-
-interface Notification {
-  _id: string;
-  type: string;
-  message: string;
-  timestamp: string;
-  isRead: boolean;
-}
-
-// ─── Dummy Data ────────────────────────────────────────────────────────────────
-
-const dummyStats: DashboardStats = {
-  totalAppointmentsToday: 24,
-  patientsCheckedIn: 17,
-  patientsWaiting: 5,
-  appointmentsCancelled: 2,
-  newRegistrationsToday: 3,
-  avgWaitTime: "18 min",
-};
-
-const dummyWaitingPatients: WaitingPatient[] = [
-  {
-    _id: "1",
-    id_no: "PT-1021",
-    patientName: "Ayesha Malik",
-    patientId: "p1",
-    checkInTime: "09:10 AM",
-    appointmentTime: "09:00 AM",
-    doctorName: "Dr. Usman Tariq",
-    status: "Waiting",
-    waitMinutes: 22,
-  },
-  {
-    _id: "2",
-    id_no: "PT-1034",
-    patientName: "Bilal Ahmed",
-    patientId: "p2",
-    checkInTime: "09:25 AM",
-    appointmentTime: "09:30 AM",
-    doctorName: "Dr. Sara Noor",
-    status: "Waiting",
-    waitMinutes: 10,
-  },
-  {
-    _id: "3",
-    id_no: "PT-1047",
-    patientName: "Fatima Zahra",
-    patientId: "p3",
-    checkInTime: "09:40 AM",
-    appointmentTime: "09:45 AM",
-    doctorName: "Dr. Usman Tariq",
-    status: "With Doctor",
-    waitMinutes: 0,
-  },
-  {
-    _id: "4",
-    id_no: "PT-1058",
-    patientName: "Hassan Raza",
-    patientId: "p4",
-    checkInTime: "10:00 AM",
-    appointmentTime: "10:00 AM",
-    doctorName: "Dr. Kamran Ali",
-    status: "Called",
-    waitMinutes: 5,
-  },
-  {
-    _id: "5",
-    id_no: "PT-1062",
-    patientName: "Sana Iqbal",
-    patientId: "p5",
-    checkInTime: "10:15 AM",
-    appointmentTime: "10:15 AM",
-    doctorName: "Dr. Sara Noor",
-    status: "Waiting",
-    waitMinutes: 8,
-  },
-];
-
-const dummyAppointments: TodayAppointment[] = [
-  {
-    _id: "a1",
-    id_no: "PT-1021",
-    patientName: "Ayesha Malik",
-    doctorName: "Dr. Usman Tariq",
-    appointmentTime: "09:00 AM",
-    reason: "Follow-up",
-    status: "Checked In",
-    shift: "Morning",
-  },
-  {
-    _id: "a2",
-    id_no: "PT-1034",
-    patientName: "Bilal Ahmed",
-    doctorName: "Dr. Sara Noor",
-    appointmentTime: "09:30 AM",
-    reason: "Fever & Cough",
-    status: "Checked In",
-    shift: "Morning",
-  },
-  {
-    _id: "a3",
-    id_no: "PT-1047",
-    patientName: "Fatima Zahra",
-    doctorName: "Dr. Usman Tariq",
-    appointmentTime: "09:45 AM",
-    reason: "Routine Checkup",
-    status: "Completed",
-    shift: "Morning",
-  },
-  {
-    _id: "a4",
-    id_no: "PT-1058",
-    patientName: "Hassan Raza",
-    doctorName: "Dr. Kamran Ali",
-    appointmentTime: "10:00 AM",
-    reason: "Blood Pressure",
-    status: "Checked In",
-    shift: "Morning",
-  },
-  {
-    _id: "a5",
-    id_no: "PT-1070",
-    patientName: "Nadia Hussain",
-    doctorName: "Dr. Sara Noor",
-    appointmentTime: "10:30 AM",
-    reason: "Skin Allergy",
-    status: "Scheduled",
-    shift: "Morning",
-  },
-  {
-    _id: "a6",
-    id_no: "PT-1083",
-    patientName: "Tariq Mehmood",
-    doctorName: "Dr. Kamran Ali",
-    appointmentTime: "11:00 AM",
-    reason: "Diabetes Review",
-    status: "Cancelled",
-    shift: "Morning",
-  },
-];
-
-const dummyRecentActivity: RecentActivity[] = [
-  {
-    _id: "r1",
-    type: "check_in",
-    patientName: "Sana Iqbal",
-    action: "Patient checked in",
-    timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
-  },
-  {
-    _id: "r2",
-    type: "registration",
-    patientName: "Zaid Hamid",
-    action: "New patient registered",
-    timestamp: new Date(Date.now() - 18 * 60000).toISOString(),
-  },
-  {
-    _id: "r3",
-    type: "cancellation",
-    patientName: "Tariq Mehmood",
-    action: "Appointment cancelled",
-    timestamp: new Date(Date.now() - 34 * 60000).toISOString(),
-  },
-  {
-    _id: "r4",
-    type: "reschedule",
-    patientName: "Amna Khalid",
-    action: "Appointment rescheduled",
-    timestamp: new Date(Date.now() - 52 * 60000).toISOString(),
-  },
-  {
-    _id: "r5",
-    type: "call",
-    patientName: "Hassan Raza",
-    action: "Patient called to doctor",
-    timestamp: new Date(Date.now() - 65 * 60000).toISOString(),
-  },
-];
-
-const dummyNotifications: Notification[] = [
-  {
-    _id: "n1",
-    type: "alert",
-    message: "Dr. Usman Tariq is running 15 min late for morning shift.",
-    timestamp: new Date(Date.now() - 10 * 60000).toISOString(),
-    isRead: false,
-  },
-  {
-    _id: "n2",
-    type: "info",
-    message: "Ayesha Malik has been waiting for over 20 minutes.",
-    timestamp: new Date(Date.now() - 22 * 60000).toISOString(),
-    isRead: false,
-  },
-  {
-    _id: "n3",
-    type: "info",
-    message: "New appointment booked for 2:00 PM — Waqas Javed.",
-    timestamp: new Date(Date.now() - 40 * 60000).toISOString(),
-    isRead: true,
-  },
-];
+import {
+  getReceptionistDashboardDataApi,
+  type DashboardStats,
+  type Notification,
+  type RecRecentActivity,
+  type TodayAppointment,
+  type WaitingPatient,
+} from "../../api";
+import type { IStateData } from "../../features";
+import { getStatusColor, getTrimmedDate } from "../../helpers";
+import { getFormatTimeAgo } from "../../helpers/getFormatTimeAgo";
+import { StatsCard } from "../../components";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const ReceptionistDashboard = () => {
-  const receptionist = useSelector((state: any) => state.auth.user);
+  const receptionist = useSelector((state: IStateData) => state.auth.user);
   const navigate = useNavigate();
+  console.log(receptionist);
 
-  const [stats, setStats] = useState<DashboardStats>(dummyStats);
-  const [waitingPatients, setWaitingPatients] =
-    useState<WaitingPatient[]>(dummyWaitingPatients);
+  const [stats, setStats] = useState<DashboardStats>();
+  const [waitingPatients, setWaitingPatients] = useState<WaitingPatient[]>();
   const [todayAppointments, setTodayAppointments] =
-    useState<TodayAppointment[]>(dummyAppointments);
-  const [recentActivity, setRecentActivity] =
-    useState<RecentActivity[]>(dummyRecentActivity);
-  const [notifications, setNotifications] =
-    useState<Notification[]>(dummyNotifications);
+    useState<TodayAppointment[]>();
+  const [recentActivity, setRecentActivity] = useState<RecRecentActivity[]>();
+  const [notifications, setNotifications] = useState<Notification[]>();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ── Replace dummy fetches with real API calls ──────────────────────────────
-  // const fetchDashboardData = async () => {
-  //   try {
-  //     const response = await axiosInstance.get("/receptionist/get-dashboard-data");
-  //     if (response.data.success) {
-  //       setStats(response.data.stats);
-  //       setWaitingPatients(response.data.waitingPatients);
-  //       setTodayAppointments(response.data.todayAppointments);
-  //       setRecentActivity(response.data.recentActivity);
-  //       setNotifications(response.data.notifications);
-  //     }
-  //   } catch (error: any) {
-  //     toast.error(error.response?.data?.message || "Failed to load dashboard");
-  //   }
-  // };
+  const fetchDashboardData = async () => {
+    console.log("sudais");
+    try {
+      const response = await getReceptionistDashboardDataApi();
+      console.log(response.data);
+      if (response.data.success) {
+        setStats(response.data.stats);
+        setWaitingPatients(response.data.waitingPatients);
+        setTodayAppointments(response.data.todayAppointments);
+        setRecentActivity(response.data.recentActivity);
+        setNotifications(response.data.notifications);
+        console.log(response.data);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to load dashboard");
+    }
+  };
 
   useEffect(() => {
-    // fetchDashboardData();   // ← uncomment when backend is ready
+    if (receptionist?.id) {
+      const fetchData = async () => {
+        await fetchDashboardData();
+      };
+      fetchData();
+    }
 
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [receptionist?.id]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-
-  const formatTimeAgo = (timestamp: string) => {
-    const diff = Math.floor(
-      (Date.now() - new Date(timestamp).getTime()) / 1000,
-    );
-    if (diff < 60) return "Just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Completed":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "Checked In":
-        return "bg-blue-100 text-blue-800 border-blue-200";
-      case "Scheduled":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "Cancelled":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "No Show":
-        return "bg-gray-100 text-gray-800 border-gray-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
 
   const getWaitingStatusColor = (status: string) => {
     switch (status) {
@@ -376,13 +121,55 @@ const ReceptionistDashboard = () => {
     // navigate or trigger API here
   };
 
-  const filteredAppointments = todayAppointments.filter(
+  const filteredAppointments = todayAppointments?.filter(
     (apt) =>
       apt.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       apt.id_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
       apt.doctorName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  const recStats = [
+    {
+      statType: "dashboard",
+      index: 1,
+      label: "Today's Appointments",
+      label2: "Total scheduled",
+      value: stats?.totalAppointmentsToday,
+      color: "blue",
+      icon: Calendar,
+      icon2: ArrowRight,
+    },
+    {
+      statType: "dashboard",
+      index: 2,
+      label: "Patients Waiting",
+      label2: `Avg. wait: ${stats?.avgWaitTime}`,
+      value: stats?.patientsWaiting,
+      color: "yellow",
+      icon: Clock,
+      icon2: AlertCircle,
+    },
+    {
+      statType: "dashboard",
+      index: 3,
+      label: "Checked In",
+      label2: `${stats?.appointmentsCancelled} cancelled today`,
+      value: stats?.patientsCheckedIn,
+      color: "green",
+      icon: CheckCircle,
+      icon2: TrendingUp,
+    },
+    {
+      statType: "dashboard",
+      index: 4,
+      label: "New Registrations",
+      label2: "Registered today",
+      value: stats?.newRegistrationsToday,
+      color: "purple",
+      icon: UserPlus,
+      icon2: Activity,
+    },
+  ];
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -425,70 +212,19 @@ const ReceptionistDashboard = () => {
         {/* ── Summary Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
           {/* Total Appointments */}
-          <div className="bg-blue-100 rounded-lg shadow-lg p-4 text-blue-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-blue-300 bg-opacity-30 p-2 rounded-full">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <ArrowRight className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-blue-700 text-sm font-medium">
-              Today's Appointments
-            </p>
-            <p className="text-2xl font-bold mt-2">
-              {stats.totalAppointmentsToday}
-            </p>
-            <p className="text-blue-700 text-xs mt-2">Total scheduled</p>
-          </div>
-
-          {/* Patients Waiting */}
-          <div className="bg-yellow-100 rounded-lg shadow-lg p-4 text-yellow-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-yellow-300 bg-opacity-30 p-2 rounded-full">
-                <Clock className="h-5 w-5" />
-              </div>
-              <AlertCircle className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-yellow-700 text-sm font-medium">
-              Patients Waiting
-            </p>
-            <p className="text-2xl font-bold mt-2">{stats.patientsWaiting}</p>
-            <p className="text-yellow-700 text-xs mt-2">
-              Avg. wait: {stats.avgWaitTime}
-            </p>
-          </div>
-
-          {/* Checked In */}
-          <div className="bg-green-100 rounded-lg shadow-lg p-4 text-green-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-green-300 bg-opacity-30 p-2 rounded-full">
-                <CheckCircle className="h-5 w-5" />
-              </div>
-              <TrendingUp className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-green-700 text-sm font-medium">Checked In</p>
-            <p className="text-2xl font-bold mt-2">{stats.patientsCheckedIn}</p>
-            <p className="text-green-700 text-xs mt-2">
-              {stats.appointmentsCancelled} cancelled today
-            </p>
-          </div>
-
-          {/* New Registrations */}
-          <div className="bg-purple-100 rounded-lg shadow-lg p-4 text-purple-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-purple-300 bg-opacity-30 p-2 rounded-full">
-                <UserPlus className="h-5 w-5" />
-              </div>
-              <Activity className="h-5 w-5 opacity-70" />
-            </div>
-            <p className="text-purple-700 text-sm font-medium">
-              New Registrations
-            </p>
-            <p className="text-2xl font-bold mt-2">
-              {stats.newRegistrationsToday}
-            </p>
-            <p className="text-purple-700 text-xs mt-2">Registered today</p>
-          </div>
+          {recStats.map((stat) => (
+            <StatsCard
+              key={stat.index}
+              index={stat.index}
+              statType="dashboard"
+              label={stat.label}
+              color={stat.color}
+              icon={stat.icon}
+              icon2={stat.icon2}
+              value={stat.value}
+              label2={stat.label2}
+            />
+          ))}
         </div>
 
         {/* ── Main Grid ── */}
@@ -503,19 +239,22 @@ const ReceptionistDashboard = () => {
                   Waiting Room
                 </h3>
                 <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-semibold rounded-full">
-                  {waitingPatients.filter((p) => p.status === "Waiting").length}{" "}
+                  {
+                    waitingPatients?.filter((p) => p.status === "Waiting")
+                      .length
+                  }{" "}
                   waiting
                 </span>
               </div>
 
               <div className="space-y-3">
-                {waitingPatients.length === 0 ? (
+                {waitingPatients?.length === 0 ? (
                   <div className="text-center py-8">
                     <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500">No patients in waiting room</p>
                   </div>
                 ) : (
-                  waitingPatients.map((patient, index) => (
+                  waitingPatients?.map((patient, index) => (
                     <div
                       key={patient._id}
                       className={`border rounded-lg p-3 transition-all ${
@@ -568,7 +307,7 @@ const ReceptionistDashboard = () => {
                               </span>
                               <span className="flex items-center gap-1">
                                 <DoorOpen className="h-3 w-3" />
-                                In: {patient.checkInTime}
+                                In: {getTrimmedDate(patient.checkInTime)}
                               </span>
                               <span className="flex items-center gap-1">
                                 <FileText className="h-3 w-3" />
@@ -648,9 +387,6 @@ const ReceptionistDashboard = () => {
                         Doctor
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                        Reason
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
                         Status
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
@@ -659,7 +395,7 @@ const ReceptionistDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {filteredAppointments.map((apt) => (
+                    {filteredAppointments?.map((apt) => (
                       <tr key={apt._id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm font-semibold text-gray-900">
                           {apt.appointmentTime}
@@ -672,9 +408,6 @@ const ReceptionistDashboard = () => {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700">
                           {apt.doctorName}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {apt.reason}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -761,11 +494,11 @@ const ReceptionistDashboard = () => {
                   Notifications
                 </h3>
                 <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded-full">
-                  {notifications.filter((n) => !n.isRead).length}
+                  {notifications?.filter((n) => !n.isRead).length}
                 </span>
               </div>
               <div className="space-y-2">
-                {notifications.slice(0, 3).map((notif) => (
+                {notifications?.slice(0, 3).map((notif) => (
                   <div
                     key={notif._id}
                     className={`p-3 rounded-lg border ${
@@ -783,7 +516,7 @@ const ReceptionistDashboard = () => {
                       <div className="flex-1">
                         <p className="text-sm text-gray-900">{notif.message}</p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {formatTimeAgo(notif.timestamp)}
+                          {getFormatTimeAgo(notif?.timestamp)}
                         </p>
                       </div>
                     </div>
@@ -802,7 +535,7 @@ const ReceptionistDashboard = () => {
                 Recent Activity
               </h3>
               <div className="space-y-2">
-                {recentActivity.map((activity) => (
+                {recentActivity?.map((activity) => (
                   <div
                     key={activity._id}
                     className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
@@ -816,7 +549,7 @@ const ReceptionistDashboard = () => {
                         {activity.patientName}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {formatTimeAgo(activity.timestamp)}
+                        {getFormatTimeAgo(activity.timestamp)}
                       </p>
                     </div>
                   </div>
@@ -836,7 +569,7 @@ const ReceptionistDashboard = () => {
                     Checked In Today
                   </span>
                   <span className="text-xl font-bold">
-                    {stats.patientsCheckedIn}
+                    {stats?.patientsCheckedIn}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -844,19 +577,21 @@ const ReceptionistDashboard = () => {
                     New Registrations
                   </span>
                   <span className="text-xl font-bold">
-                    {stats.newRegistrationsToday}
+                    {stats?.newRegistrationsToday}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-indigo-100 text-sm">
                     Avg. Wait Time
                   </span>
-                  <span className="text-xl font-bold">{stats.avgWaitTime}</span>
+                  <span className="text-xl font-bold">
+                    {stats?.avgWaitTime}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-indigo-100 text-sm">Cancellations</span>
                   <span className="text-xl font-bold">
-                    {stats.appointmentsCancelled}
+                    {stats?.appointmentsCancelled}
                   </span>
                 </div>
               </div>

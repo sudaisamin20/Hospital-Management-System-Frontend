@@ -15,10 +15,10 @@ interface ModalProps {
   cancelText?: string;
   cancelColor?: string;
   cancelIcon: ReactNode;
-  onBtn1: () => void;
-  btn1Text: string;
-  btn1Color: string;
-  btn1Icon: ReactNode;
+  onBtn1?: () => void;
+  btn1Text?: string;
+  btn1Color?: string;
+  btn1Icon?: ReactNode;
   width?: string;
   height?: string;
 }

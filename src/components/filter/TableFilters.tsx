@@ -34,7 +34,9 @@ const TableFilters: React.FC<FilterConfig> = ({
     <div className="space-y-3 mb-4">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {/* Search Input */}
-        <div className="relative md:col-span-2">
+        <div
+          className={`relative ${filters.length < 3 ? "md:col-span-2" : ""}`}
+        >
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"

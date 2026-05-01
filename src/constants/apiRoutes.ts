@@ -53,6 +53,7 @@ export const API_ENDPOINTS = {
   RECEPTIONIST: {
     MARK_AS_SEEN_RES_REQ_APTS:
       "/receptionist/appointment/mark-as-seen/res-req-apts",
+    DASHBOARD_DATA: "/receptionist/fetch/dashboard-data",
   },
   APPOINTMENT: {
     CREATE: "/appointment/add-appointment",

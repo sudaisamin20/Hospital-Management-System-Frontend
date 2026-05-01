@@ -1,5 +1,6 @@
 import axiosInstance from "./axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiRoutes";
+import type { Notification } from "./notification.api";
 
 // Types
 export interface ReceptionistProfile {
@@ -94,6 +95,46 @@ export interface AppointmentData {
   rescheduledAt?: string;
 }
 
+export interface DashboardStats {
+  totalAppointmentsToday: number;
+  patientsCheckedIn: number;
+  patientsWaiting: number;
+  appointmentsCancelled: number;
+  newRegistrationsToday: number;
+  avgWaitTime: string;
+}
+
+export interface WaitingPatient {
+  _id: string;
+  id_no: string;
+  patientName: string;
+  patientId: string;
+  checkInTime: string;
+  appointmentTime: string;
+  doctorName: string;
+  status: "Waiting" | "With Doctor" | "Called";
+  waitMinutes: number;
+}
+
+export interface TodayAppointment {
+  _id: string;
+  id_no: string;
+  patientName: string;
+  doctorName: string;
+  appointmentTime: string;
+  reason: string;
+  status: "Scheduled" | "Checked In" | "Completed" | "Cancelled" | "No Show";
+  shift: string;
+}
+
+export interface RecRecentActivity {
+  _id: string;
+  type: "check_in" | "registration" | "cancellation" | "reschedule" | "call";
+  patientName: string;
+  action: string;
+  timestamp: string;
+}
+
 // API Functions
 export const getReceptionistProfileApi = () =>
   axiosInstance.get<{ success: boolean; receptionist: ReceptionistProfile }>(
@@ -135,3 +176,14 @@ export const rejectRescheduleRequestAptApi = (
     API_ENDPOINTS.APPOINTMENT.REJECT_RESCHEDULE_REQUEST,
     { appointmentId, status },
   );
+
+export const getReceptionistDashboardDataApi = () =>
+  axiosInstance.get<{
+    success: boolean;
+    message: string;
+    stats: DashboardStats;
+    waitingPatients: WaitingPatient[];
+    todayAppointments: TodayAppointment[];
+    recentActivity: RecRecentActivity[];
+    notifications: Notification[];
+  }>(API_ENDPOINTS.RECEPTIONIST.DASHBOARD_DATA);

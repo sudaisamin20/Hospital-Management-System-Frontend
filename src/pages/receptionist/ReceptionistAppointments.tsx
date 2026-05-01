@@ -20,7 +20,9 @@ import Modal from "../../components/Modal";
 import { useSelector } from "react-redux";
 import { useSocket } from "../../hooks/useSocket";
 import { useSocketEvent } from "../../hooks/useSocketEvent";
-import type { IStateData, User as IUser } from "../../features";
+import type { IStateData } from "../../features";
+import { getShiftColor, getStatusColor } from "../../helpers";
+import { TableFilters } from "../../components/filter";
 
 interface Appointment {
   _id: string;
@@ -55,49 +57,15 @@ interface Appointment {
 
 const ReceptionistAppointments = () => {
   const { isOpen, openModal, closeModal } = useModal();
-  const receptionist: IUser = useSelector(
-    (state: IStateData) => state.auth.user,
-  );
+  const receptionist = useSelector((state: IStateData) => state.auth.user);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [modalType, setModalType] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
   const [dateFilter, setDateFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("All");
   const [selectedApt, setSelectedApt] = useState<Appointment | null>();
   const baseurl = import.meta.env.VITE_BASE_URL;
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Confirmed":
-        return "bg-green-100 text-green-800";
-      case "Pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "Completed":
-        return "bg-blue-100 text-blue-800";
-      case "Cancelled":
-        return "bg-red-100 text-red-800";
-      case "Reschedule Requested":
-        return "bg-amber-100 text-amber-800";
-      case "Rescheduled":
-        return "bg-amber-100 text-amber-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getShiftColor = (shift: string) => {
-    switch (shift.toLowerCase()) {
-      case "morning":
-        return "bg-orange-100 text-orange-800";
-      case "afternoon":
-        return "bg-purple-100 text-purple-800";
-      case "evening":
-        return "bg-indigo-100 text-indigo-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
 
   // const handleStatusChange = (id: string, newStatus: Appointment["status"]) => {
   //   setAppointments(
@@ -232,16 +200,16 @@ const ReceptionistAppointments = () => {
         ?.includes(searchTerm?.toLowerCase()) ||
       apt.patientId?._id?.toLowerCase()?.includes(searchTerm?.toLowerCase());
 
-    const matchesStatus = statusFilter === "all" || apt.status === statusFilter;
-    const matchesDate = !dateFilter || apt.aptDate === dateFilter;
+    const matchesStatus = statusFilter === "All" || apt.status === statusFilter;
+    const matchesDate = !dateFilter || apt.aptDate == dateFilter;
     const matchesDepartment =
-      departmentFilter === "all" || apt.departmentId.name === departmentFilter;
+      departmentFilter === "All" || apt.departmentId.name === departmentFilter;
 
     return matchesSearch && matchesStatus && matchesDate && matchesDepartment;
   });
 
   // Get unique departments
-  const departments = Array.from(
+  const departments: string[] = Array.from(
     new Set(appointments.map((apt) => apt.departmentId.name)),
   );
 
@@ -353,75 +321,56 @@ const ReceptionistAppointments = () => {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by patient, doctor, ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Confirmed">Confirmed</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-
-            {/* Date Filter */}
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-            />
-
-            {/* Department Filter */}
-            <select
-              value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Departments</option>
-              {departments?.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Clear Filters */}
-          {(searchTerm ||
-            statusFilter !== "all" ||
-            dateFilter ||
-            departmentFilter !== "all") && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                setDateFilter("");
-                setDepartmentFilter("all");
-              }}
-              className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Clear all filters
-            </button>
-          )}
-        </div>
+        <TableFilters
+          searchPlaceholder="Search by appointment ID or patient ID, name..."
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={[
+            {
+              id: "status",
+              label: "Status",
+              type: "select",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { label: "All", value: "All" },
+                { label: "Pending", value: "Pending" },
+                { label: "Confirmed", value: "Confirmed" },
+                { label: "Completed", value: "Completed" },
+                { label: "Cancelled", value: "Cancelled" },
+                {
+                  label: "Reschedule Requested",
+                  value: "Reschedule Requested",
+                },
+                { label: "Rescheduled", value: "Rescheduled" },
+              ],
+            },
+            {
+              id: "date",
+              label: "Date",
+              type: "date",
+              value: dateFilter,
+              onChange: setDateFilter,
+            },
+            {
+              id: "department",
+              label: "Department",
+              type: "select",
+              value: departmentFilter,
+              onChange: setDepartmentFilter,
+              options: departments.map((dept) => ({
+                label: dept,
+                value: dept,
+              })),
+            },
+          ]}
+          onClearAll={() => {
+            setSearchTerm("");
+            setStatusFilter("All");
+            setDateFilter("");
+            setDepartmentFilter("All");
+          }}
+        />
 
         {/* Results Count */}
         <div className="mb-4">

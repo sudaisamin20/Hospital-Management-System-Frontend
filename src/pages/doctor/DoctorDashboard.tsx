@@ -20,6 +20,7 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
 import { StatsCard } from "../../components/index";
+import type { IStateData } from "../../features";
 
 interface DashboardStats {
   todayAppointments: number;
@@ -54,7 +55,7 @@ interface TodayAppointment {
 
 interface RecentActivity {
   _id: string;
-  type: "consultation" | "prescription" | "labTest";
+  type: "consultation" | "prescription" | "labTest" | "appointment";
   patientName: string;
   action: string;
   timestamp: string;
@@ -69,9 +70,8 @@ interface Notification {
 }
 
 const DoctorDashboard = () => {
-  const doctor = useSelector((state: any) => state.auth.user);
+  const doctor = useSelector((state: IStateData) => state.auth.user);
   const navigate = useNavigate();
-  const baseurl = import.meta.env.VITE_BASE_URL;
 
   const [stats, setStats] = useState<DashboardStats>({
     todayAppointments: 0,

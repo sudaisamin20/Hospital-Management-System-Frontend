@@ -64,6 +64,7 @@ import {
   StaffManagement,
   SuperAdminDashboard,
 } from "./pages/super admin";
+import DoctorConsultation from "./pages/doctor/DoctorConsultation";
 
 function App() {
   useLoadUser();
@@ -99,6 +100,7 @@ function App() {
           <Route index element={<Navigate to="/doctor/dashboard" />} />
           <Route path="dashboard" element={<DoctorDashboard />} />
           <Route path="appointments" element={<DoctorAppointments />} />
+          <Route path="consultation" element={<DoctorConsultation />} />
           <Route path="patients" element={<DoctorPatients />} />
           <Route
             path="patients/patient-profile/:patientId"

@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import {
   Bell,
-  Calendar,
-  Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -10,8 +8,6 @@ import {
   Eye,
   MailOpen,
   X,
-  FlaskConical,
-  FileText,
   Download,
 } from "lucide-react";
 import useModal from "../../hooks/useModal";
@@ -26,7 +22,7 @@ import {
   type Notification,
 } from "../../api";
 import { useSocket, useSocketEvent } from "../../hooks";
-import { getNotificationColor, getNotificationIcon } from "../../components";
+import { getNotificationColor, getNotificationIcon } from "../../helpers/index";
 
 const PatienNotifications = () => {
   const patient = useSelector((state: any) => state.auth.user);

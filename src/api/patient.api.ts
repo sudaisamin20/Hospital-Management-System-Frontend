@@ -39,6 +39,62 @@ export interface PatientMedicalRecords {
   timeline: any[];
 }
 
+export interface DashboardData {
+  stats: Stats;
+  trends: Trends;
+  upcomingAppointments: UpcomingAppointment[];
+  recentActivity: RecentActivity[];
+  healthMetrics: HealthMetrics | null;
+  notifications: Notification[];
+}
+
+export interface Trend {
+  label: string;
+  direction: "up" | "down" | "neutral";
+}
+
+export interface Trends {
+  upcomingAppointments: Trend;
+  medicalRecords: Trend;
+  activePrescriptions: Trend;
+}
+
+export interface Stats {
+  upcomingAppointmentCount: number;
+  totalMedicalRecords: number;
+  activePrescriptions: number;
+  outstandingBills: number;
+}
+
+export interface UpcomingAppointment {
+  _id: string;
+  doctorName: string;
+  date: string;
+  time: string;
+  status: string;
+  shift: string;
+}
+
+export interface RecentActivity {
+  _id: string;
+  type: "appointment" | "prescription" | "lab";
+  message: string;
+  time: string;
+}
+
+export interface HealthMetrics {
+  bloodPressure: string | null;
+  heartRate: number | null;
+  temperature: number | null;
+  weight: number | null;
+  height: number | null;
+  recordedAt: string;
+}
+
+// export interface IRecentActivityPatient {
+
+// }
+
 // API Functions
 export const getPatientProfileApi = () =>
   axiosInstance.get<{ success: boolean; patient: PatientProfile }>(
@@ -73,12 +129,13 @@ export const getPatientDashboardDataApi = () =>
     success: boolean;
     message: string;
     stats: {
-      upcomingAppointments: number;
+      upcomingAppointmentCount: number;
       totalMedicalRecords: number;
       activePrescriptions: number;
       outstandingBills: number;
     };
-    upcomingAppointments: number;
-    recentActivity: number;
-    notifications: number;
+    upcomingAppointments: UpcomingAppointment[];
+    recentActivity: RecentActivity[];
+    notifications: Notification[];
+    healthMetrics: HealthMetrics;
   }>(API_ENDPOINTS.PATIENT.DASHBOARD_DATA);

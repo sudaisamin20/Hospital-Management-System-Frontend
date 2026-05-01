@@ -3,10 +3,8 @@ import {
   Calendar,
   Clock,
   Stethoscope,
-  FileText,
   CheckCircle,
   AlertCircle,
-  ChevronRight,
   User,
 } from "lucide-react";
 import axios from "axios";
@@ -14,6 +12,8 @@ import toast from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
+import LoadingButton from "../../components/LoadingButton";
+import { getTodayDate } from "../../helpers/getTodayDate";
 
 interface Department {
   _id: string;
@@ -57,6 +57,16 @@ const BookAppointment = () => {
   const inputClass =
     "w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white text-gray-800 placeholder-gray-400";
 
+  // ── Check if all required fields are filled ───────────────────────────────
+  const isFormComplete =
+    !!formData.aptDate &&
+    !!formData.departmentId &&
+    !!formData.specialist &&
+    !!formData.doctorId &&
+    !!formData.shift &&
+    !!formData.appointmentTime &&
+    formData.reasonForVisit.trim().length >= 10;
+
   const handleInputChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -64,13 +74,11 @@ const BookAppointment = () => {
   ) => {
     const { name, value } = e.target;
     if (name === "aptDate") {
-      const now = new Date();
-      const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const todayDate = getTodayDate();
       if (value === todayDate) {
         return toast.error("You can't book appointment today!");
       }
     }
-
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -85,12 +93,15 @@ const BookAppointment = () => {
 
   const fetchSpecialists = useCallback(async (deptId: string) => {
     try {
+      setLoading(true);
       const response = await axiosInstance.get(
         `/superadmin/fetch/specialists/${deptId}`,
       );
       if (response.data.success) setSpecialists(response.data.specialists);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -115,42 +126,22 @@ const BookAppointment = () => {
   useEffect(() => {
     if (formData.departmentId) {
       fetchSpecialists(formData.departmentId);
-      setFormData((prev) => ({
-        ...prev,
-        specialist: "",
-        doctorId: "",
-      }));
+      setFormData((prev) => ({ ...prev, specialist: "", doctorId: "" }));
     }
   }, [formData.departmentId, fetchSpecialists]);
 
   useEffect(() => {
     if (formData.specialist) {
       fetchRelatedDoctors(formData.specialist);
-      setFormData((prev) => ({
-        ...prev,
-        doctorId: "",
-      }));
+      setFormData((prev) => ({ ...prev, doctorId: "" }));
     }
   }, [formData.specialist, fetchRelatedDoctors]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.aptDate ||
-      !formData.departmentId ||
-      !formData.specialist ||
-      !formData.doctorId ||
-      !formData.shift ||
-      !formData.appointmentTime ||
-      !formData.reasonForVisit
-    ) {
+    if (!isFormComplete) {
       toast.error("Please fill in all required fields");
-      return;
-    }
-
-    if (formData.reasonForVisit.trim().length < 10) {
-      toast.error("Please provide at least 10 characters for reason for visit");
       return;
     }
 
@@ -178,9 +169,7 @@ const BookAppointment = () => {
       if (response.data.success) {
         toast.success(
           "Appointment booked successfully! You will receive a confirmation.",
-          {
-            duration: 4000,
-          },
+          { duration: 4000 },
         );
         setFormData({
           aptDate: "",
@@ -335,6 +324,7 @@ const BookAppointment = () => {
                   </div>
                 </div>
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Department */}
                 <div>
@@ -388,10 +378,10 @@ const BookAppointment = () => {
                     }}
                     className={inputClass}
                     required
-                    disabled={!formData.department}
+                    disabled={!formData.departmentId}
                   >
                     <option value="">
-                      {formData.department
+                      {formData.departmentId
                         ? "Select specialist"
                         : "Select department first"}
                     </option>
@@ -403,7 +393,7 @@ const BookAppointment = () => {
                   </select>
                 </div>
 
-                {/* Doctor — full width cards */}
+                {/* Doctor cards */}
                 <div className="md:col-span-2 mb-3">
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
                     Available Doctors <span className="text-red-500">*</span>
@@ -479,6 +469,8 @@ const BookAppointment = () => {
                   )}
                 </div>
               </div>
+
+              {/* Reason */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Please describe your symptoms or reason{" "}
@@ -514,7 +506,7 @@ const BookAppointment = () => {
                       icon: (
                         <Calendar className="h-4 w-4 inline mr-1.5 text-blue-600" />
                       ),
-                      label: " Date",
+                      label: "Date",
                       value: formData.aptDate
                         ? new Date(formData.aptDate).toLocaleDateString(
                             "en-US",
@@ -590,41 +582,19 @@ const BookAppointment = () => {
               </div>
             </div>
 
-            {/* Submit */}
-            <button
+            {/* Submit — uses LoadingButton, only active when form is complete */}
+            <LoadingButton
               type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 text-white text-base font-semibold rounded-xl hover:shadow-xl hover:bg-blue-700 transition-all duration-300 ease-in-out cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <div className="inline-block animate-spin">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                  </div>
-                  Booking Your Appointment...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="h-5 w-5" />
-                  Book Appointment
-                  <ChevronRight className="h-5 w-5" />
-                </>
-              )}
-            </button>
+              isLoading={loading}
+              text="Book Appointment"
+              loadingText="Booking Appointment..."
+              className={`w-full py-4 text-base rounded-xl transition-all duration-300 ${
+                isFormComplete
+                  ? "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-xl"
+                  : "bg-gray-300 cursor-not-allowed opacity-60"
+              }`}
+              disabled={!isFormComplete || loading}
+            />
           </form>
         </div>
       </div>
